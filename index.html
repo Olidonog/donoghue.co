@@ -63,7 +63,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);font-fami
   </div>
 </div>
 <script>
-// === LEVELS ===
 const LV=[
   {n:'prague',sky:['#c4cfd8','#b8c4cf','#d4dce4'],gr:'#6b7c6e',ga:'#5a6b5d',ob:'#4a5a4d',ot:'#3d4d40',pt:'#7a9a7d',bc:['#8a9e8c','#7d9080','#6b7c6e','#9aae9c'],th:0},
   {n:'mtb',sky:['#a8c4a0','#b8d4b0','#98b490'],gr:'#5a7a4a',ga:'#4a6a3a',ob:'#3d6030',ot:'#2d5020',pt:'#4a7a3a',bc:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'],th:10},
@@ -77,18 +76,19 @@ const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 let W,H,GY,PR;
 const GH=90;
 const PW=26,PH=38;
+const GRAV=0.72;
+const JUMP=-15.5;
+const SPEED_START=10;
+const SPEED_MAX=22;
+const SPEED_INC=0.006;
+const MAX_JUMPS=2;
 
-// Physics - feels snappy and fast
-const GRAV=0.7;
-const JUMP_FORCE=-15;
-const SPEED_START=8;      // starts fast
-const SPEED_MAX=18;
-const SPEED_INC=0.004;
-const MAX_JUMPS=2;        // double jump
+// running distance accumulator for leg animation — tied to world speed
+let runDist=0;
 
 let state='start',score=0,speed,lvi,frame,bgo;
 let PX,PY,PVY,jumpsLeft,onGround;
-let walls,platforms,bg,lastSpawn,nextType;
+let walls,platforms,bg,lastSpawn;
 
 function resize(){
   PR=window.devicePixelRatio||1;
@@ -102,9 +102,9 @@ function resize(){
 addEventListener('resize',resize);
 
 function initGame(){
-  state='playing'; score=0; speed=SPEED_START; lvi=0; frame=0; bgo=0;
+  state='playing'; score=0; speed=SPEED_START; lvi=0; frame=0; bgo=0; runDist=0;
   PX=W*0.18; PY=GY-PH; PVY=0; jumpsLeft=MAX_JUMPS; onGround=true;
-  walls=[]; platforms=[]; bg=[]; lastSpawn=Date.now()+1200; nextType=0;
+  walls=[]; platforms=[]; bg=[]; lastSpawn=Date.now()+1000;
   initBG();
   document.getElementById('ss').classList.add('h');
   document.getElementById('gs').classList.remove('v');
@@ -114,15 +114,15 @@ function initGame(){
   document.getElementById('d0').classList.add('a');
 }
 
-// === BACKGROUND ===
 function initBG(){
   bg=[];
   const lv=LV[lvi];
   for(let i=0;i<16;i++) bg.push({
     x:Math.random()*W*1.4, h:15+Math.random()*65, w:10+Math.random()*28,
-    col:lv.bc[Math.floor(Math.random()*lv.bc.length)], spd:0.15+Math.random()*0.35
+    col:lv.bc[Math.floor(Math.random()*lv.bc.length)], spd:0.12+Math.random()*0.3
   });
 }
+
 function drawBG(){
   const lv=LV[lvi];
   const g=ctx.createLinearGradient(0,0,0,GY);
@@ -132,138 +132,111 @@ function drawBG(){
   if(lvi===4){ ctx.fillStyle='rgba(255,255,255,.55)'; for(let i=0;i<22;i++) ctx.fillRect((bgo+i*61)%W,(bgo*.6+i*89)%(GY*.85),2,2); }
   ctx.fillStyle=lv.gr; ctx.fillRect(0,GY,W,GH);
   ctx.fillStyle=lv.ga; ctx.fillRect(0,GY,W,5);
+  // ground speed lines — faster = more visible streaks
+  if(speed>12){
+    const alpha=Math.min(0.18,(speed-12)/40);
+    ctx.fillStyle='rgba(0,0,0,'+alpha+')';
+    for(let i=0;i<8;i++){
+      const sx=(bgo*3+i*120)%W;
+      const len=20+speed*2;
+      ctx.fillRect(sx,GY+10+i*8,len,1);
+    }
+  }
   if(lvi===2){ ctx.fillStyle='rgba(0,0,0,.04)'; for(let i=0;i<16;i++){const sx=(bgo*2.2+i*50)%W; ctx.fillRect(sx,GY+5,20,GH-5);} }
 }
+
 function updBG(){
-  bgo=(bgo+speed*.2)%W;
+  bgo=(bgo+speed*.22)%W;
   bg.forEach(b=>{
-    b.x-=b.spd*speed*.12;
+    b.x-=b.spd*speed*.14;
     if(b.x<-b.w){ const lv=LV[lvi]; b.x=W+b.w; b.col=lv.bc[Math.floor(Math.random()*lv.bc.length)]; }
   });
 }
 
-// === OBSTACLES: walls + platforms ===
-// obstacle types:
-//   wall:     tall ground wall - must jump over
-//   low:      short wall - can jump over or duck (just jump)
-//   platform: floating platform mid-air - land on top, or slide under
-//   gap:      2 walls with gap - must time jump to land between
-
 function spawnNext(){
   const lv=LV[lvi];
-  const spawnX=W+60;
   const r=Math.random();
+  const platChance=Math.min(0.42,0.08+score*0.009);
 
-  // weight platform spawns more as score rises
-  const platChance = Math.min(0.45, 0.1 + score*0.008);
-
-  if(r < platChance){
-    // floating platform - land on it to continue
-    const pw=70+Math.random()*80;
+  if(r<platChance){
+    const pw=65+Math.random()*90;
     const ph=14;
-    const py=GY - 90 - Math.random()*120; // height: 90-210px above ground
-    platforms.push({x:spawnX, y:py, w:pw, h:ph, col:lv.pt, top:lv.ot, passed:false});
-    // sometimes add a wall after the platform
-    if(Math.random()>0.5){
-      const wh=30+Math.random()*40;
-      walls.push({x:spawnX+pw+80+Math.random()*60, h:wh, w:20+Math.random()*14, col:lv.ob, top:lv.ot, passed:false});
+    const py=GY-85-Math.random()*110;
+    platforms.push({x:W+50,y:py,w:pw,h:ph,col:lv.pt,top:lv.ot,passed:false});
+    if(Math.random()>0.45){
+      walls.push({x:W+50+pw+70+Math.random()*50,h:28+Math.random()*38,w:18+Math.random()*14,col:lv.ob,top:lv.ot,passed:false});
     }
-  } else if(r < platChance+0.15 && score>5){
-    // paired walls with gap - jump into the gap
-    const gap=90+Math.random()*60;
-    const wh=50+Math.random()*60;
-    const ww=22+Math.random()*12;
-    walls.push({x:spawnX, h:wh, w:ww, col:lv.ob, top:lv.ot, passed:false});
-    walls.push({x:spawnX+ww+gap, h:wh+20, w:ww, col:lv.ob, top:lv.ot, passed:false});
+  } else if(r<platChance+0.18 && score>4){
+    const gap=80+Math.random()*70;
+    const wh=45+Math.random()*55;
+    const ww=20+Math.random()*12;
+    walls.push({x:W+50,h:wh,w:ww,col:lv.ob,top:lv.ot,passed:false});
+    walls.push({x:W+50+ww+gap,h:wh+15,w:ww,col:lv.ob,top:lv.ot,passed:false});
   } else {
-    // single wall, varied height
-    const h = score<8 ? 35+Math.random()*30 : 30+Math.random()*65;
-    walls.push({x:spawnX, h, w:20+Math.random()*16, col:lv.ob, top:lv.ot, passed:false});
+    const h=score<6 ? 32+Math.random()*28 : 28+Math.random()*70;
+    walls.push({x:W+50,h,w:18+Math.random()*16,col:lv.ob,top:lv.ot,passed:false});
   }
 }
 
 function updObstacles(){
   const now=Date.now();
-  const interval=Math.max(700, 1500 - score*12);
+  const interval=Math.max(620,1400-score*14);
   if(now-lastSpawn>interval){ spawnNext(); lastSpawn=now; }
-
-  walls.forEach(o=>{ o.x-=speed; });
-  platforms.forEach(p=>{ p.x-=speed; });
+  walls.forEach(o=>o.x-=speed);
+  platforms.forEach(p=>p.x-=speed);
   walls=walls.filter(o=>o.x>-120);
-  platforms=platforms.filter(p=>p.x>-200);
-
-  // score when passing obstacles
-  walls.forEach(o=>{ if(!o.passed&&o.x+o.w/2<PX){ o.passed=true; score++; onScore(); } });
-  platforms.forEach(p=>{ if(!p.passed&&p.x+p.w<PX){ p.passed=true; score++; onScore(); } });
+  platforms=platforms.filter(p=>p.x>-220);
+  walls.forEach(o=>{ if(!o.passed&&o.x+o.w/2<PX){ o.passed=true; score++; onScore(); }});
+  platforms.forEach(p=>{ if(!p.passed&&p.x+p.w<PX){ p.passed=true; score++; onScore(); }});
 }
 
 function onScore(){
   document.getElementById('sv').textContent=score;
-  checkLevel();
+  for(let i=LV.length-1;i>=0;i--){
+    if(score>=LV[i].th&&lvi!==i&&i>lvi){ lvi=i; initBG(); document.getElementById('d'+lvi).classList.add('a'); break; }
+  }
 }
 
 function drawObstacles(){
-  const lv=LV[lvi];
   walls.forEach(o=>{
-    ctx.fillStyle=o.col; ctx.fillRect(o.x-o.w/2, GY-o.h, o.w, o.h);
-    ctx.fillStyle=o.top; ctx.fillRect(o.x-o.w/2-3, GY-o.h, o.w+6, 8);
+    ctx.fillStyle=o.col; ctx.fillRect(o.x-o.w/2,GY-o.h,o.w,o.h);
+    ctx.fillStyle=o.top; ctx.fillRect(o.x-o.w/2-3,GY-o.h,o.w+6,8);
   });
   platforms.forEach(p=>{
-    // platform underside shadow
-    ctx.fillStyle='rgba(0,0,0,.15)';
-    ctx.fillRect(p.x+3, p.y+p.h, p.w, 4);
-    // platform body
-    ctx.fillStyle=p.col; ctx.fillRect(p.x, p.y, p.w, p.h);
-    // platform top edge highlight
-    ctx.fillStyle=p.top; ctx.fillRect(p.x, p.y, p.w, 4);
+    ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(p.x+4,p.y+p.h,p.w,5);
+    ctx.fillStyle=p.col; ctx.fillRect(p.x,p.y,p.w,p.h);
+    ctx.fillStyle=p.top; ctx.fillRect(p.x,p.y,p.w,4);
   });
 }
 
-function checkLevel(){
-  for(let i=LV.length-1;i>=0;i--){
-    if(score>=LV[i].th&&lvi!==i&&i>lvi){
-      lvi=i; initBG();
-      document.getElementById('d'+lvi).classList.add('a');
-      break;
-    }
-  }
-}
-
-// === PLAYER ===
 function updPlayer(){
   PVY+=GRAV;
   PY+=PVY;
-
   onGround=false;
 
-  // ground collision
-  if(PY>=GY-PH){
-    PY=GY-PH; PVY=0; onGround=true; jumpsLeft=MAX_JUMPS;
-  }
+  // ground
+  if(PY>=GY-PH){ PY=GY-PH; PVY=0; onGround=true; jumpsLeft=MAX_JUMPS; }
 
-  // platform collision - land on top only (falling down onto platform)
+  // platforms — land on top
   platforms.forEach(p=>{
-    const prevPY=PY-PVY; // where we were last frame
-    const feetY=PY; // bottom of player = PY (since PY is bottom)
-    const prevFeet=prevPY;
-    if(PX+PW/2-6>p.x && PX-PW/2+6<p.x+p.w){
-      // landing on top
-      if(PVY>=0 && prevFeet<=p.y && feetY>=p.y){
+    if(PX+PW/2-5>p.x && PX-PW/2+5<p.x+p.w){
+      if(PVY>=0 && PY-PVY<=p.y && PY>=p.y){
         PY=p.y; PVY=0; onGround=true; jumpsLeft=MAX_JUMPS;
       }
     }
   });
 
-  // ceiling
-  if(PY<0){ PY=0; PVY=0; }
+  if(PY<PH){ PY=PH; PVY=Math.max(0,PVY); }
+
+  // accumulate running distance for leg animation — faster world = faster legs
+  if(onGround) runDist+=speed;
 }
 
 function drawPlayer(){
   ctx.save();
-  ctx.translate(PX, PY);
-  // squash on land, stretch on jump
-  const sy=onGround?1:(PVY<-4?1.12:PVY>4?0.92:1);
-  const sx=onGround?1:(PVY<-4?0.88:1);
+  ctx.translate(PX,PY);
+  const sy=onGround?1:(PVY<-5?1.14:PVY>5?0.9:1);
+  const sx=onGround?1:(PVY<-5?0.86:1);
   ctx.scale(sx,sy);
   drawAv(lvi);
   ctx.restore();
@@ -271,78 +244,78 @@ function drawPlayer(){
 
 function drawAv(l){
   const hw=PW/2,hh=PH/2;
+  // body
   ctx.fillStyle='#1a1a18'; ctx.fillRect(-hw+3,-hh+10,PW-6,PH-18);
+  // head
   ctx.fillStyle='#d4b896'; ctx.fillRect(-hw+6,-hh,PW-8,13);
+  // hair
   ctx.fillStyle='#2a2420'; ctx.fillRect(-hw+5,-hh-3,PW-7,6);
+  // eye
   ctx.fillStyle='#1a1a18'; ctx.fillRect(hw-9,-hh+5,2,2);
-  // animated legs
-  const lp=onGround?Math.sin(frame*0.32)*6:0;
+  // LEGS — speed-synced: runDist drives the phase, not frame count
+  const legPhase = onGround ? Math.sin(runDist*0.045)*7 : 0;
+  const armPhase = onGround ? Math.sin(runDist*0.045+Math.PI)*4 : 0;
   ctx.fillStyle='#2a2a28';
-  ctx.fillRect(-hw+3,hh-9+lp,7,8);
-  ctx.fillRect(-hw+13,hh-9-lp,7,8);
+  ctx.fillRect(-hw+3, hh-10+legPhase, 7, 9);
+  ctx.fillRect(-hw+13, hh-10-legPhase, 7, 9);
+  // arms
+  ctx.fillStyle='#1a1a18';
+  ctx.fillRect(-hw+3, -hh+18+armPhase, 5, 7);
+  ctx.fillRect(hw-8, -hh+18-armPhase, 5, 7);
+
   // level overlays
-  if(l===1){ctx.fillStyle='#3a7a3a';ctx.fillRect(-hw+4,-hh-5,PW-5,8);ctx.fillStyle='#2a6a2a';ctx.fillRect(-hw+3,-hh,3,5);}
-  else if(l===2){ctx.fillStyle='#f0e8d0';ctx.fillRect(-hw+4,-hh-4,PW-6,6);ctx.fillRect(hw-5,-hh-2,6,3);}
-  else if(l===3){ctx.strokeStyle='#8a7060';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hw-3,2);ctx.lineTo(hw+16,0);ctx.stroke();ctx.fillStyle='#c8a878';ctx.fillRect(hw+12,-8,10,7);ctx.fillRect(hw+15,-13,8,6);ctx.fillRect(hw+14,0,4,5);ctx.fillRect(hw+19,0,4,5);}
-  else if(l===4){ctx.fillStyle='#c04040';ctx.fillRect(-hw+4,-hh-6,PW-5,8);ctx.fillStyle='#d0c080';ctx.fillRect(hw-11,-hh+4,6,4);}
-  else if(l===5){ctx.fillStyle='#4a4a48';ctx.fillRect(hw-5,-hh+14,3,9);ctx.fillRect(hw-7,-hh+13,7,2);}
+  if(l===1){ ctx.fillStyle='#3a7a3a'; ctx.fillRect(-hw+4,-hh-5,PW-5,8); ctx.fillStyle='#2a6a2a'; ctx.fillRect(-hw+3,-hh,3,5); }
+  else if(l===2){ ctx.fillStyle='#f0e8d0'; ctx.fillRect(-hw+4,-hh-4,PW-6,6); ctx.fillRect(hw-5,-hh-2,6,3); }
+  else if(l===3){ ctx.strokeStyle='#8a7060'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(hw-3,2); ctx.lineTo(hw+16,0); ctx.stroke(); ctx.fillStyle='#c8a878'; ctx.fillRect(hw+12,-8,10,7); ctx.fillRect(hw+15,-13,8,6); ctx.fillRect(hw+14,0,4,5); ctx.fillRect(hw+19,0,4,5); }
+  else if(l===4){ ctx.fillStyle='#c04040'; ctx.fillRect(-hw+4,-hh-6,PW-5,8); ctx.fillStyle='#d0c080'; ctx.fillRect(hw-11,-hh+4,6,4); }
+  else if(l===5){ ctx.fillStyle='#4a4a48'; ctx.fillRect(hw-5,-hh+14,3,9); ctx.fillRect(hw-7,-hh+13,7,2); }
 }
 
-// === COLLISION (death) ===
 function checkCollision(){
-  const px=PX-PW/2+4, py=PY-PH+4, pw=PW-8, ph=PH-8;
+  const px=PX-PW/2+4,py=PY-PH+5,pw=PW-8,ph=PH-8;
   for(const o of walls){
-    const ox=o.x-o.w/2, oy=GY-o.h;
-    if(px<ox+o.w && px+pw>ox && py+ph>oy && py<oy+o.h) return true;
+    if(px<o.x-o.w/2+o.w && px+pw>o.x-o.w/2 && py+ph>GY-o.h && py<GY) return true;
   }
   return false;
 }
 
-// === INPUT ===
 function doJump(){
   if(jumpsLeft>0){
-    PVY=JUMP_FORCE * (jumpsLeft===MAX_JUMPS ? 1 : 0.82); // second jump slightly lower
-    onGround=false;
-    jumpsLeft--;
+    PVY=JUMP*(jumpsLeft===MAX_JUMPS?1:0.8);
+    onGround=false; jumpsLeft--;
   }
 }
+
 function handleInput(){
   if(state==='start') initGame();
   else if(state==='playing') doJump();
 }
 
-document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();handleInput();}});
+document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();handleInput();} });
 cv.addEventListener('click',handleInput);
 cv.addEventListener('touchstart',e=>{e.preventDefault();handleInput();},{passive:false});
 document.getElementById('rb').addEventListener('click',e=>{e.stopPropagation();initGame();});
 
-// === IDLE ===
 function drawIdle(){
   if(!W)return;
   ctx.clearRect(0,0,W,H);
   const lv=LV[0];
   const g=ctx.createLinearGradient(0,0,0,GY||H*.85);
-  g.addColorStop(0,lv.sky[0]);g.addColorStop(1,lv.sky[2]);
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  ctx.fillStyle=lv.gr;ctx.fillRect(0,GY||H*.85,W,H);
-  ctx.fillStyle=lv.ga;ctx.fillRect(0,GY||H*.85,W,5);
+  g.addColorStop(0,lv.sky[0]); g.addColorStop(1,lv.sky[2]);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=lv.gr; ctx.fillRect(0,GY||H*.85,W,H);
+  ctx.fillStyle=lv.ga; ctx.fillRect(0,GY||H*.85,W,5);
 }
 
-// === LOOP ===
 function loop(){
   requestAnimationFrame(loop);
-  if(state!=='playing'){if(state==='start')drawIdle();return;}
+  if(state!=='playing'){ if(state==='start') drawIdle(); return; }
   frame++;
-  speed=Math.min(SPEED_MAX, SPEED_START+score*SPEED_INC*60);
-  updBG();updObstacles();updPlayer();
+  speed=Math.min(SPEED_MAX,SPEED_START+score*SPEED_INC*60);
+  updBG(); updObstacles(); updPlayer();
   if(checkCollision()){die();return;}
   ctx.clearRect(0,0,W,H);
-  drawBG();drawObstacles();drawPlayer();
-  // speed indicator - subtle
-  if(score>0){
-    ctx.fillStyle='rgba(15,15,13,.12)';
-    ctx.fillRect(0,H-3,W*(speed-SPEED_START)/(SPEED_MAX-SPEED_START),3);
-  }
+  drawBG(); drawObstacles(); drawPlayer();
 }
 
 function die(){
