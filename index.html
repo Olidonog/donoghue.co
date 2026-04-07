@@ -13,7 +13,6 @@
   --ink: #0f0f0d;
   --paper: #f4f1eb;
   --muted: #8a8578;
-  --accent: #c8a96e;
 }
 
 html,body {
@@ -37,7 +36,6 @@ html,body {
   font-family:'DM Mono',monospace;
 }
 
-/* ── START SCREEN ── */
 #start {
   position:absolute;inset:0;
   display:flex;flex-direction:column;
@@ -56,11 +54,6 @@ html,body {
   margin-bottom:56px;
 }
 
-.title-wrap {
-  text-align:center;
-  margin-bottom:56px;
-}
-
 .mode-tag {
   font-size:clamp(9px,0.9vw,11px);
   font-weight:300;
@@ -74,10 +67,10 @@ html,body {
   font-family:'Playfair Display',serif;
   font-style:italic;
   font-size:clamp(72px,10vw,120px);
-  font-weight:400;
   color:var(--ink);
   line-height:0.9;
   letter-spacing:-0.02em;
+  margin-bottom:56px;
 }
 
 .start-hint {
@@ -90,26 +83,21 @@ html,body {
 }
 
 @keyframes pulse {
-  0%,100%{opacity:0.4}
-  50%{opacity:1}
+  0%,100%{opacity:0.4} 50%{opacity:1}
 }
 
 .level-pips {
   position:absolute;
-  bottom:40px;
-  left:50%;transform:translateX(-50%);
+  bottom:40px;left:50%;transform:translateX(-50%);
   display:flex;gap:8px;
 }
 .pip {
-  width:5px;height:5px;
-  border-radius:50%;
-  background:var(--muted);
-  opacity:0.25;
+  width:5px;height:5px;border-radius:50%;
+  background:var(--muted);opacity:0.25;
   transition:opacity 0.4s,background 0.4s;
 }
 .pip.on { opacity:1; background:var(--ink); }
 
-/* ── SCORE ── */
 #score {
   position:absolute;
   top:28px;left:50%;transform:translateX(-50%);
@@ -119,7 +107,6 @@ html,body {
   transition:opacity 0.4s;
 }
 
-/* ── GAME OVER ── */
 #over {
   position:absolute;inset:0;
   display:flex;flex-direction:column;
@@ -148,9 +135,7 @@ html,body {
   background:rgba(15,15,13,0.2);
   margin-bottom:32px;
 }
-.over-id {
-  text-align:center;margin-bottom:28px;
-}
+.over-id { text-align:center;margin-bottom:28px; }
 .over-fullname {
   font-size:clamp(10px,1.1vw,13px);
   font-weight:500;letter-spacing:0.15em;
@@ -186,23 +171,16 @@ html,body {
   pointer-events:all;
   transition:all 0.2s ease;
 }
-.play-btn:hover {
-  background:var(--ink);color:var(--paper);
-  border-color:var(--ink);
-}
+.play-btn:hover { background:var(--ink);color:var(--paper);border-color:var(--ink); }
 </style>
 </head>
 <body>
-
 <canvas id="canvas"></canvas>
-
 <div id="ui">
   <div id="start">
     <div class="wordmark">donoghue.co</div>
-    <div class="title-wrap">
-      <div class="mode-tag">Mode</div>
-      <div class="title-oli">Oli</div>
-    </div>
+    <div class="mode-tag">Mode</div>
+    <div class="title-oli">Oli</div>
     <div class="start-hint">tap to begin</div>
     <div class="level-pips">
       <div class="pip on" id="p0"></div>
@@ -213,9 +191,7 @@ html,body {
       <div class="pip" id="p5"></div>
     </div>
   </div>
-
   <div id="score">Distance — <span id="sv">0</span></div>
-
   <div id="over">
     <div class="over-label">Mode ended</div>
     <div class="over-name">Oli</div>
@@ -231,254 +207,319 @@ html,body {
 </div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────────────────────────
 const CFG = {
-  gravity:       0.36,
-  jump:         -7.0,
-  baseSpeed:     4.0,
-  speedInc:      0.0007,
-  gap:           190,
-  spawnMs:       1650,
-  groundH:       72,
-  trailLen:      8,
+  gravity:    0.36,
+  jump:      -7.0,
+  baseSpeed:  4.0,
+  speedInc:   0.0006,
+  gap:        240,   // wider gap — easier for kids
+  spawnMs:    1700,
+  groundH:    72,
+  trailLen:   8,
 };
 
-// ── LEVELS ──────────────────────────────────────────────────────────────────
 const LEVELS = [
-  {
-    name:'Prague', threshold:0,
-    sky:['#bec9d2','#c8d3dc','#d4dde6'],
-    fog:'rgba(180,192,202,0.18)',
-    ground:'#6b7c6e', gndAccent:'#5a6b5d',
-    obs:'#4a5a4d', obsTop:'#3a4a3d',
-    bld:['#8a9e8c','#7a8e7e','#9aae9c','#6a7e6c'],
-    ptcl:'rgba(160,176,164,0.6)',
-    weather:null,
-  },
-  {
-    name:'MTB', threshold:10,
-    sky:['#a4c09c','#b4d0ac','#94b08c'],
-    fog:'rgba(148,186,136,0.12)',
-    ground:'#5a7a4a', gndAccent:'#4a6a3a',
-    obs:'#3a6030', obsTop:'#2a5020',
-    bld:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'],
-    ptcl:'rgba(144,170,128,0.5)',
-    weather:'leaves',
-  },
-  {
-    name:'Golf', threshold:25,
-    sky:['#b4d89c','#c4e8ac','#a4c88c'],
-    fog:'rgba(164,200,140,0.1)',
-    ground:'#4a8a5a', gndAccent:'#3a7a4a',
-    obs:'#2a6a3a', obsTop:'#1a5a2a',
-    bld:['#5a9a6a','#6aaa7a','#4a8a5a','#7aba8a'],
-    ptcl:'rgba(128,192,144,0.5)',
-    weather:null,
-  },
-  {
-    name:'Family', threshold:42,
-    sky:['#d0c4b8','#dcd0c4','#c4b8ac'],
-    fog:'rgba(200,184,168,0.15)',
-    ground:'#8a7868', gndAccent:'#7a6858',
-    obs:'#6a5848', obsTop:'#5a4838',
-    bld:['#9a8878','#aa9888','#8a7868','#baaa98'],
-    ptcl:'rgba(192,176,160,0.5)',
-    weather:null,
-  },
-  {
-    name:'Snow', threshold:60,
-    sky:['#d4e8f4','#e0f0f8','#c8dcea'],
-    fog:'rgba(210,230,242,0.2)',
-    ground:'#d4e4ee', gndAccent:'#c0d4e2',
-    obs:'#a0b8c8', obsTop:'#8ca8b8',
-    bld:['#b4ccd8','#c4dce8','#a4bcc8','#ccdce8'],
-    ptcl:'rgba(230,240,248,0.8)',
-    weather:'snow',
-  },
-  {
-    name:'Cargo', threshold:82,
-    sky:['#c4c0b4','#d0ccc0','#b8b4a8'],
-    fog:'rgba(188,184,172,0.15)',
-    ground:'#7a8070', gndAccent:'#6a7060',
-    obs:'#5a6050', obsTop:'#4a5040',
-    bld:['#9a9888','#8a8878','#aa9898','#7a7868'],
-    ptcl:'rgba(176,172,158,0.5)',
-    weather:null,
-  },
+  { name:'Prague',    threshold:0,  sky:['#bec9d2','#c8d3dc','#d4dde6'], fog:'rgba(180,192,202,0.18)', ground:'#6b7c6e', gndAccent:'#5a6b5d', obs:'#4a5a4d', obsTop:'#3a4a3d', bld:['#8a9e8c','#7a8e7e','#9aae9c','#6a7e6c'], weather:null },
+  { name:'MTB',       threshold:10, sky:['#a4c09c','#b4d0ac','#94b08c'], fog:'rgba(148,186,136,0.12)', ground:'#5a7a4a', gndAccent:'#4a6a3a', obs:'#3a6030', obsTop:'#2a5020', bld:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'], weather:'leaves' },
+  { name:'Golf',      threshold:25, sky:['#b4d89c','#c4e8ac','#a4c88c'], fog:'rgba(164,200,140,0.1)',  ground:'#4a8a5a', gndAccent:'#3a7a4a', obs:'#2a6a3a', obsTop:'#1a5a2a', bld:['#5a9a6a','#6aaa7a','#4a8a5a','#7aba8a'], weather:null },
+  { name:'Family',    threshold:42, sky:['#d0c4b8','#dcd0c4','#c4b8ac'], fog:'rgba(200,184,168,0.15)', ground:'#8a7868', gndAccent:'#7a6858', obs:'#6a5848', obsTop:'#5a4838', bld:['#9a8878','#aa9888','#8a7868','#baaa98'], weather:null },
+  { name:'Snow',      threshold:60, sky:['#d4e8f4','#e0f0f8','#c8dcea'], fog:'rgba(210,230,242,0.2)',  ground:'#d4e4ee', gndAccent:'#c0d4e2', obs:'#a0b8c8', obsTop:'#8ca8b8', bld:['#b4ccd8','#c4dce8','#a4bcc8','#ccdce8'], weather:'snow' },
+  { name:'Cargo',     threshold:82, sky:['#c4c0b4','#d0ccc0','#b8b4a8'], fog:'rgba(188,184,172,0.15)', ground:'#7a8070', gndAccent:'#6a7060', obs:'#5a6050', obsTop:'#4a5040', bld:['#9a9888','#8a8878','#aa9898','#7a7868'], weather:null },
 ];
 
-// ── STATE ────────────────────────────────────────────────────────────────────
-let state = 'start'; // start | play | dead
-let score = 0, frame = 0, speed = CFG.baseSpeed, lvlIdx = 0;
-let lastSpawn = 0, particles = [], weather = [], buildings = [];
+let state='start', score=0, frame=0, speed=CFG.baseSpeed, lvlIdx=0;
+let lastSpawn=0, weather=[], buildings=[];
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let W,H,GH;
 
-const canvas = document.getElementById('canvas');
-const ctx    = canvas.getContext('2d');
-let W, H, GH;
-
-// ── PLAYER ───────────────────────────────────────────────────────────────────
+// ── PLAYER ────────────────────────────────────────────────────────────────────
 const player = {
-  x: 0, y: 0, vy: 0,
-  w: 28, h: 32,
-  trail: [],
-  dead: false,
+  x:0, y:0, vy:0, w:32, h:36,
+  trail:[],
 
-  reset() {
-    this.x  = W * 0.22;
-    this.y  = H * 0.46;
-    this.vy = 0;
-    this.trail = [];
-    this.dead = false;
-  },
-
-  jump() {
-    this.vy = CFG.jump;
-  },
+  reset() { this.x=W*0.22; this.y=H*0.46; this.vy=0; this.trail=[]; },
+  jump()  { this.vy=CFG.jump; },
 
   update() {
     this.vy += CFG.gravity;
     this.y  += this.vy;
-    this.trail.unshift({x:this.x, y:this.y, a:0.18});
+    this.trail.unshift({x:this.x, y:this.y});
     if(this.trail.length > CFG.trailLen) this.trail.pop();
-    this.trail.forEach((t,i) => t.a = (1 - i/CFG.trailLen) * 0.12);
   },
 
   hitbox() {
-    return { x:this.x-this.w/2+5, y:this.y-this.h/2+4, w:this.w-10, h:this.h-8 };
+    return { x:this.x-this.w/2+6, y:this.y-this.h/2+4, w:this.w-12, h:this.h-8 };
   },
 
-  draw(lv) {
-    const lvl = LEVELS[lv];
+  draw() {
     // Trail
     this.trail.forEach((t,i) => {
       ctx.save();
-      ctx.globalAlpha = t.a * (1-i/CFG.trailLen);
-      ctx.fillStyle = lvl.ground;
-      ctx.fillRect(t.x - this.w/2 + 4, t.y - this.h/2 + 6, this.w-8, this.h-12);
+      ctx.globalAlpha = (1-i/CFG.trailLen)*0.09;
+      ctx.fillStyle = LEVELS[lvlIdx].ground;
+      ctx.fillRect(t.x-this.w/2+5, t.y-this.h/2+5, this.w-10, this.h-10);
       ctx.restore();
     });
     ctx.save();
     ctx.translate(this.x, this.y);
-    // Tilt with velocity
-    const tilt = Math.max(-0.4, Math.min(0.3, this.vy * 0.025));
+    const tilt = Math.max(-0.4, Math.min(0.3, this.vy*0.025));
     ctx.rotate(tilt);
-    drawAvatar(lv);
+    drawAvatar(lvlIdx);
     ctx.restore();
   }
 };
 
-// ── AVATAR DRAWING ────────────────────────────────────────────────────────────
+// ── AVATAR VARIANTS ───────────────────────────────────────────────────────────
+// Each level gets a fully distinct avatar pose/equipment
 function drawAvatar(lv) {
-  const hw = player.w/2, hh = player.h/2;
+  const w=player.w, h=player.h;
+  const hw=w/2, hh=h/2;
 
-  // Body
-  ctx.fillStyle = '#1c1c1a';
-  ctx.fillRect(-hw+4, -hh+8, player.w-8, player.h-14);
-
-  // Head / skin
-  ctx.fillStyle = '#d4b896';
-  ctx.fillRect(-hw+7, -hh+1, player.w-10, 11);
-
-  // Hair
-  ctx.fillStyle = '#2a2420';
-  ctx.fillRect(-hw+6, -hh-1, player.w-8, 5);
-
-  // Eye
-  ctx.fillStyle = '#1a1a18';
-  ctx.fillRect(hw-8, -hh+5, 2, 2);
-
-  // Legs
-  ctx.fillStyle = '#2a2a28';
-  ctx.fillRect(-hw+5, hh-8, 7, 7);
-  ctx.fillRect(-hw+14, hh-8, 7, 7);
-
-  // Level overlays
   if(lv === 0) {
-    // Prague — scarf
-    ctx.fillStyle = '#8a6a4a';
-    ctx.fillRect(-hw+4, -hh+10, player.w-6, 4);
+    // ── PRAGUE: Walking, scarf, hands in pockets ──
+    // Legs (walking)
+    ctx.fillStyle='#2a2a28';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    ctx.fillRect(-hw+15, hh-8, 8, 8);
+    // Body
+    ctx.fillStyle='#2a3040';
+    ctx.fillRect(-hw+3, -hh+10, w-6, h-20);
+    // Scarf
+    ctx.fillStyle='#9a4a3a';
+    ctx.fillRect(-hw+3, -hh+14, w-4, 5);
+    ctx.fillStyle='#b05a48';
+    ctx.fillRect(hw-6, -hh+14, 8, 10);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh, w-10, 12);
+    // Hair
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, w-8, 5);
+    // Eye
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-9, -hh+5, 2, 2);
+
   } else if(lv === 1) {
-    // MTB — helmet
-    ctx.fillStyle = '#3a7030';
-    ctx.fillRect(-hw+5, -hh-4, player.w-7, 7);
-    ctx.fillStyle = '#2a6020';
-    ctx.fillRect(-hw+4, -hh, 4, 4);
-    // glasses
-    ctx.fillStyle = 'rgba(200,220,240,0.7)';
-    ctx.fillRect(hw-10, -hh+4, 6, 3);
-  } else if(lv === 2) {
-    // Golf — cap
-    ctx.fillStyle = '#f0e8d0';
-    ctx.fillRect(-hw+5, -hh-3, player.w-8, 5);
-    ctx.fillRect(hw-5, -hh-2, 6, 3);
-  } else if(lv === 3) {
-    // Family — casual jacket
-    ctx.fillStyle = '#6a8aaa';
-    ctx.fillRect(-hw+3, -hh+8, player.w-6, player.h-16);
-    // dog lead
-    ctx.strokeStyle = '#8a7060';
-    ctx.lineWidth = 1.5;
+    // ── MTB: Crouched on bike ──
+    // Bike wheels
+    ctx.strokeStyle='#2a2a28'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(-hw+6, hh+2, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hw-4, hh+2, 9, 0, Math.PI*2); ctx.stroke();
+    // Bike frame
+    ctx.strokeStyle='#4a4a48'; ctx.lineWidth=2;
     ctx.beginPath();
-    ctx.moveTo(hw-3, hh-5);
-    ctx.quadraticCurveTo(hw+10, hh+2, hw+18, hh-8);
+    ctx.moveTo(-hw+6, hh+2); ctx.lineTo(0, hh-8); ctx.lineTo(hw-4, hh+2);
     ctx.stroke();
-    // dog body
-    ctx.fillStyle = '#c8a870';
-    ctx.fillRect(hw+12, hh-14, 12, 8);
-    ctx.fillRect(hw+18, hh-7, 4, 5);
-    ctx.fillRect(hw+12, hh-7, 3, 4);
-    // dog head
-    ctx.fillRect(hw+16, hh-18, 9, 6);
-    ctx.fillRect(hw+23, hh-15, 4, 3);
+    ctx.beginPath();
+    ctx.moveTo(0, hh-8); ctx.lineTo(-hw+12, -hh+18);
+    ctx.stroke();
+    // Handlebar
+    ctx.fillStyle='#3a3a38';
+    ctx.fillRect(hw-10, -hh+14, 3, 10);
+    ctx.fillRect(hw-14, -hh+12, 8, 3);
+    // Body (crouched forward)
+    ctx.fillStyle='#1a3a1a';
+    ctx.fillRect(-hw+8, -hh+8, w-10, h-22);
+    // Helmet
+    ctx.fillStyle='#e84040';
+    ctx.beginPath();
+    ctx.ellipse(-hw+13, -hh+2, 10, 7, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle='#c03030';
+    ctx.fillRect(-hw+4, -hh+3, 18, 4);
+    // Face / visor
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+8, -hh+6, w-14, 8);
+    ctx.fillStyle='rgba(180,220,255,0.6)';
+    ctx.fillRect(hw-12, -hh+6, 7, 5);
+    // Arms reaching forward
+    ctx.fillStyle='#1a3a1a';
+    ctx.fillRect(hw-14, -hh+14, 10, 5);
+
+  } else if(lv === 2) {
+    // ── GOLF: Mid-swing stance ──
+    // Club shaft
+    ctx.strokeStyle='#8a8070'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(hw-2, -hh-8);
+    ctx.lineTo(-hw-4, hh+4);
+    ctx.stroke();
+    // Club head
+    ctx.fillStyle='#6a6058';
+    ctx.fillRect(-hw-8, hh+2, 10, 5);
+    // Back leg
+    ctx.fillStyle='#e8e0d0';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    // Front leg (planted)
+    ctx.fillStyle='#d8d0c0';
+    ctx.fillRect(-hw+15, hh-12, 8, 12);
+    // Body (rotated into swing)
+    ctx.fillStyle='#f0e8d8';
+    ctx.fillRect(-hw+3, -hh+10, w-6, h-20);
+    // Polo shirt stripe
+    ctx.fillStyle='#d0c8b8';
+    ctx.fillRect(-hw+3, -hh+20, w-6, 3);
+    // Arms (swinging)
+    ctx.fillStyle='#f0e8d8';
+    ctx.fillRect(-hw+2, -hh+10, 6, 14);
+    ctx.fillRect(hw-8, -hh+8, 6, 12);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh+1, w-10, 11);
+    // Cap
+    ctx.fillStyle='#f4f0e4';
+    ctx.fillRect(-hw+5, -hh-3, w-8, 6);
+    ctx.fillRect(hw-4, -hh-1, 6, 4);
+    // Hair / Eye
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, 10, 3);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-10, -hh+5, 2, 2);
+
+  } else if(lv === 3) {
+    // ── FAMILY: Walking with dog on lead ──
+    // Dog (ahead of player)
+    ctx.fillStyle='#c8a870';
+    ctx.fillRect(hw+8, hh-14, 14, 9);   // body
+    ctx.fillRect(hw+8,  hh-6, 3, 5);    // front leg
+    ctx.fillRect(hw+17, hh-6, 3, 5);    // back leg
+    ctx.fillRect(hw+12, hh-19, 10, 7);  // head
+    ctx.fillRect(hw+20, hh-16, 5, 3);   // snout
+    ctx.fillStyle='#2a1a0a';
+    ctx.fillRect(hw+13, hh-17, 2, 2);   // eye
+    // Tail up
+    ctx.strokeStyle='#c8a870'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(hw+8, hh-12);
+    ctx.quadraticCurveTo(hw+4, hh-22, hw+7, hh-24);
+    ctx.stroke();
+    // Lead
+    ctx.strokeStyle='#8a7060'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(hw-2, hh-6);
+    ctx.quadraticCurveTo(hw+8, hh-2, hw+12, hh-8);
+    ctx.stroke();
+    // Legs
+    ctx.fillStyle='#3a3a58';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    ctx.fillRect(-hw+15, hh-8, 8, 8);
+    // Body
+    ctx.fillStyle='#6a8aaa';
+    ctx.fillRect(-hw+3, -hh+10, w-5, h-20);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh, w-10, 12);
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, w-8, 5);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-9, -hh+5, 2, 2);
+
   } else if(lv === 4) {
-    // Snow — beanie
-    ctx.fillStyle = '#b03030';
-    ctx.fillRect(-hw+5, -hh-5, player.w-7, 8);
-    ctx.fillStyle = '#d04040';
-    ctx.fillRect(-hw+5, -hh-6, player.w-7, 3);
-    // goggles
-    ctx.fillStyle = '#d4c070';
-    ctx.fillRect(hw-11, -hh+3, 7, 4);
-    ctx.fillStyle = 'rgba(255,240,160,0.5)';
-    ctx.fillRect(hw-10, -hh+4, 5, 2);
+    // ── SNOW: Full snowboard stance ──
+    // Snowboard (rotated slightly)
+    ctx.save();
+    ctx.rotate(0.1);
+    ctx.fillStyle='#e03030';
+    ctx.fillRect(-hw-4, hh+2, w+14, 6);
+    ctx.fillStyle='#ff6060';
+    ctx.fillRect(-hw-2, hh+2, 6, 3);  // nose stripe
+    ctx.restore();
+    // Back leg
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+3, hh-12, 9, 12);
+    // Front leg (bent)
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+16, hh-14, 9, 14);
+    // Body (low crouch)
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+2, -hh+12, w-4, h-24);
+    // Jacket pocket / detail
+    ctx.fillStyle='#2a3a5a';
+    ctx.fillRect(-hw+4, -hh+20, 10, 8);
+    // Arms out for balance
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw-4, -hh+14, 10, 5);  // back arm
+    ctx.fillRect(hw-6, -hh+12, 10, 5);   // front arm
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh+4, w-10, 10);
+    // Helmet
+    ctx.fillStyle='#1a2a4a';
+    ctx.beginPath();
+    ctx.ellipse(-hw+13, -hh+5, 11, 8, 0, Math.PI, 0);
+    ctx.fill();
+    // Goggles
+    ctx.fillStyle='#d4b030';
+    ctx.fillRect(-hw+6, -hh+5, w-8, 5);
+    ctx.fillStyle='rgba(255,240,100,0.5)';
+    ctx.fillRect(-hw+8, -hh+6, w-12, 3);
+    // Beanie roll
+    ctx.fillStyle='#c03030';
+    ctx.fillRect(-hw+6, -hh+1, w-8, 5);
+
   } else if(lv === 5) {
-    // Cargo — backpack
-    ctx.fillStyle = '#4a4a48';
-    ctx.fillRect(-hw, -hh+8, 5, 14);
-    ctx.fillStyle = '#3a3a38';
-    ctx.fillRect(-hw-1, -hh+10, 4, 10);
-    // handlebar hint
-    ctx.fillStyle = '#6a6a68';
-    ctx.fillRect(hw-6, -hh+14, 4, 8);
-    ctx.fillRect(hw-8, -hh+12, 7, 2);
+    // ── CARGO: On cargo bike with load ──
+    // Cargo box (front)
+    ctx.fillStyle='#8a7050';
+    ctx.fillRect(-hw-10, -hh+10, 16, 20);
+    ctx.fillStyle='#7a6040';
+    ctx.fillRect(-hw-9, -hh+11, 14, 3);  // lid line
+    ctx.strokeStyle='#6a5030'; ctx.lineWidth=1;
+    ctx.strokeRect(-hw-10, -hh+10, 16, 20);
+    // Wheels
+    ctx.strokeStyle='#2a2a28'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(-hw+2, hh+4, 10, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hw-2, hh+4, 10, 0, Math.PI*2); ctx.stroke();
+    // Frame
+    ctx.strokeStyle='#5a5a58'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(-hw+2, hh+4); ctx.lineTo(-hw+8, hh-10); ctx.lineTo(hw-2, hh+4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-hw+8, hh-10); ctx.lineTo(-hw+10, -hh+20);
+    ctx.stroke();
+    // Handlebar
+    ctx.fillStyle='#3a3a38';
+    ctx.fillRect(hw-8, -hh+14, 3, 10);
+    ctx.fillRect(hw-12, -hh+12, 8, 3);
+    // Body
+    ctx.fillStyle='#2a3a2a';
+    ctx.fillRect(-hw+8, -hh+8, w-12, h-22);
+    // Helmet
+    ctx.fillStyle='#3a8a3a';
+    ctx.beginPath();
+    ctx.ellipse(-hw+14, -hh+2, 10, 7, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle='#2a7a2a';
+    ctx.fillRect(-hw+5, -hh+3, 18, 4);
+    // Face
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+9, -hh+6, w-14, 8);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-12, -hh+9, 2, 2);
+    // Arms
+    ctx.fillStyle='#2a3a2a';
+    ctx.fillRect(hw-12, -hh+14, 10, 5);
   }
 }
 
 // ── OBSTACLES ─────────────────────────────────────────────────────────────────
-let obs = [];
+let obs=[];
 
 function spawnObs() {
   const lv  = LEVELS[lvlIdx];
-  const gap = CFG.gap - Math.min(30, score * 0.4);
-  const gapY = GH * 0.2 + Math.random() * (H - GH - gap - GH*0.3);
-  obs.push({
-    x: W + 24,
-    gapY, gap,
-    w: 44,
-    passed: false,
-    col: lv.obs,
-    top: lv.obsTop,
-  });
+  const gap = CFG.gap - Math.min(25, score*0.3); // gap narrows more slowly
+  const gapY = GH*0.15 + Math.random()*(H - GH - gap - GH*0.25);
+  obs.push({ x:W+28, gapY, gap, w:44, passed:false, col:lv.obs, top:lv.obsTop });
 }
 
 function updateObs() {
   obs.forEach(o => {
     o.x -= speed;
-    // Score
-    if(!o.passed && o.x + o.w/2 < player.x) {
-      o.passed = true;
-      score++;
-      document.getElementById('sv').textContent = score;
+    if(!o.passed && o.x+o.w/2 < player.x) {
+      o.passed=true; score++;
+      document.getElementById('sv').textContent=score;
       updateLevel();
     }
   });
@@ -487,28 +528,24 @@ function updateObs() {
 
 function drawObs() {
   obs.forEach(o => {
-    // Top pipe
-    ctx.fillStyle = o.col;
-    ctx.fillRect(o.x - o.w/2, 0, o.w, o.gapY);
-    ctx.fillStyle = o.top;
-    ctx.fillRect(o.x - o.w/2 - 3, o.gapY - 12, o.w + 6, 12);
-    // Bottom pipe
-    const bot = o.gapY + o.gap;
-    ctx.fillStyle = o.col;
-    ctx.fillRect(o.x - o.w/2, bot, o.w, H - bot - GH);
-    ctx.fillStyle = o.top;
-    ctx.fillRect(o.x - o.w/2 - 3, bot, o.w + 6, 12);
+    ctx.fillStyle=o.col;
+    ctx.fillRect(o.x-o.w/2, 0, o.w, o.gapY);
+    ctx.fillStyle=o.top;
+    ctx.fillRect(o.x-o.w/2-3, o.gapY-14, o.w+6, 14);
+    const bot=o.gapY+o.gap;
+    ctx.fillStyle=o.col;
+    ctx.fillRect(o.x-o.w/2, bot, o.w, H-bot-GH);
+    ctx.fillStyle=o.top;
+    ctx.fillRect(o.x-o.w/2-3, bot, o.w+6, 14);
   });
 }
 
 function checkCollisions() {
-  const hb = player.hitbox();
-  // Ground / ceiling
-  if(player.y + player.h/2 > H - GH || player.y - player.h/2 < 0) return true;
-  // Obstacles
+  const hb=player.hitbox();
+  if(player.y+player.h/2 > H-GH || player.y-player.h/2 < 0) return true;
   for(const o of obs) {
-    if(hb.x + hb.w > o.x - o.w/2 && hb.x < o.x + o.w/2) {
-      if(hb.y < o.gapY || hb.y + hb.h > o.gapY + o.gap) return true;
+    if(hb.x+hb.w > o.x-o.w/2 && hb.x < o.x+o.w/2) {
+      if(hb.y < o.gapY || hb.y+hb.h > o.gapY+o.gap) return true;
     }
   }
   return false;
@@ -516,174 +553,140 @@ function checkCollisions() {
 
 // ── BACKGROUND ────────────────────────────────────────────────────────────────
 function initBuildings() {
-  buildings = [];
-  const lv = LEVELS[lvlIdx];
-  for(let i = 0; i < 14; i++) {
+  buildings=[];
+  const lv=LEVELS[lvlIdx];
+  for(let i=0;i<14;i++) {
     buildings.push({
-      x: Math.random() * W * 1.5,
-      w: 20 + Math.random() * 40,
-      h: 30 + Math.random() * (H * 0.28),
-      col: lv.bld[Math.floor(Math.random() * lv.bld.length)],
-      layer: Math.random() < 0.5 ? 0 : 1,
+      x:Math.random()*W*1.5,
+      w:20+Math.random()*40,
+      h:30+Math.random()*(H*0.28),
+      col:lv.bld[Math.floor(Math.random()*lv.bld.length)],
+      layer:Math.random()<0.5?0:1,
     });
   }
-  buildings.sort((a,b) => a.layer - b.layer);
+  buildings.sort((a,b)=>a.layer-b.layer);
 }
 
 function drawBackground() {
-  const lv = LEVELS[lvlIdx];
-
-  // Sky gradient
-  const sky = ctx.createLinearGradient(0, 0, 0, H - GH);
-  sky.addColorStop(0,   lv.sky[0]);
+  const lv=LEVELS[lvlIdx];
+  const sky=ctx.createLinearGradient(0,0,0,H-GH);
+  sky.addColorStop(0, lv.sky[0]);
   sky.addColorStop(0.5, lv.sky[1]);
-  sky.addColorStop(1,   lv.sky[2]);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H - GH);
+  sky.addColorStop(1, lv.sky[2]);
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,W,H-GH);
 
-  // Background buildings (far layer)
-  buildings.filter(b => b.layer === 0).forEach(b => {
-    ctx.fillStyle = b.col;
-    ctx.globalAlpha = 0.35;
-    ctx.fillRect(b.x, H - GH - b.h, b.w, b.h);
-    ctx.globalAlpha = 1;
-  });
-
-  // Mid buildings
-  buildings.filter(b => b.layer === 1).forEach(b => {
-    ctx.fillStyle = b.col;
-    ctx.globalAlpha = 0.6;
-    ctx.fillRect(b.x, H - GH - b.h, b.w, b.h);
-    ctx.globalAlpha = 1;
-  });
-
-  // Scroll buildings
   buildings.forEach(b => {
-    b.x -= speed * (b.layer === 0 ? 0.3 : 0.55);
-    if(b.x + b.w < 0) {
-      b.x = W + 20;
-      b.w = 20 + Math.random() * 40;
-      b.h = 30 + Math.random() * (H * 0.28);
-      const lv2 = LEVELS[lvlIdx];
-      b.col = lv2.bld[Math.floor(Math.random() * lv2.bld.length)];
+    ctx.fillStyle=b.col;
+    ctx.globalAlpha=b.layer===0?0.35:0.6;
+    ctx.fillRect(b.x, H-GH-b.h, b.w, b.h);
+    ctx.globalAlpha=1;
+    b.x -= speed*(b.layer===0?0.3:0.55);
+    if(b.x+b.w<0) {
+      b.x=W+20;
+      b.w=20+Math.random()*40;
+      b.h=30+Math.random()*(H*0.28);
+      b.col=LEVELS[lvlIdx].bld[Math.floor(Math.random()*LEVELS[lvlIdx].bld.length)];
     }
   });
 
-  // Ground
-  ctx.fillStyle = lv.ground;
-  ctx.fillRect(0, H - GH, W, GH);
-  ctx.fillStyle = lv.gndAccent;
-  ctx.fillRect(0, H - GH, W, 3);
+  ctx.fillStyle=lv.ground;
+  ctx.fillRect(0,H-GH,W,GH);
+  ctx.fillStyle=lv.gndAccent;
+  ctx.fillRect(0,H-GH,W,3);
 
-  // Ground texture lines
-  ctx.strokeStyle = lv.gndAccent;
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.3;
-  for(let x = (frame * speed * 0.5) % 60; x < W; x += 60) {
-    ctx.beginPath();
-    ctx.moveTo(x, H - GH + 8);
-    ctx.lineTo(x + 20, H - GH + 8);
-    ctx.stroke();
+  // Ground marks
+  ctx.strokeStyle=lv.gndAccent;
+  ctx.lineWidth=1; ctx.globalAlpha=0.3;
+  for(let x=(frame*speed*0.5)%60;x<W;x+=60) {
+    ctx.beginPath(); ctx.moveTo(x,H-GH+8); ctx.lineTo(x+20,H-GH+8); ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha=1;
 
-  // Fog / atmosphere
-  const fog = ctx.createLinearGradient(0, H - GH - 60, 0, H - GH);
-  fog.addColorStop(0, 'transparent');
-  fog.addColorStop(1, lv.fog);
-  ctx.fillStyle = fog;
-  ctx.fillRect(0, H - GH - 60, W, 60);
+  // Fog
+  const fog=ctx.createLinearGradient(0,H-GH-60,0,H-GH);
+  fog.addColorStop(0,'transparent');
+  fog.addColorStop(1,lv.fog);
+  ctx.fillStyle=fog;
+  ctx.fillRect(0,H-GH-60,W,60);
 }
 
-// ── WEATHER PARTICLES ─────────────────────────────────────────────────────────
+// ── WEATHER ───────────────────────────────────────────────────────────────────
 function initWeather() {
-  weather = [];
-  const lv = LEVELS[lvlIdx];
+  weather=[];
+  const lv=LEVELS[lvlIdx];
   if(!lv.weather) return;
-  const n = lv.weather === 'snow' ? 60 : 30;
-  for(let i = 0; i < n; i++) {
-    spawnWeatherPtcl(true);
-  }
+  const n=lv.weather==='snow'?60:25;
+  for(let i=0;i<n;i++) spawnPtcl(true);
 }
 
-function spawnWeatherPtcl(init) {
-  const lv = LEVELS[lvlIdx];
+function spawnPtcl(init) {
+  const lv=LEVELS[lvlIdx];
   if(!lv.weather) return;
   weather.push({
-    x: Math.random() * W,
-    y: init ? Math.random() * H : -10,
-    vx: lv.weather === 'snow' ? (Math.random()-0.5)*0.8 : -speed*0.6,
-    vy: lv.weather === 'snow' ? 0.8 + Math.random()*1.2 : 1.5 + Math.random()*2,
-    r:  lv.weather === 'snow' ? 1.5 + Math.random()*2 : 2 + Math.random()*3,
-    a:  0.3 + Math.random()*0.5,
-    type: lv.weather,
+    x: Math.random()*W,
+    y: init?Math.random()*H:-10,
+    vx: lv.weather==='snow'?(Math.random()-0.5)*0.8:-speed*0.5,
+    vy: lv.weather==='snow'?0.8+Math.random()*1.2:1.5+Math.random()*2,
+    r:  lv.weather==='snow'?1.5+Math.random()*2:2+Math.random()*3,
+    a:  0.3+Math.random()*0.5,
+    type:lv.weather,
   });
 }
 
 function updateWeather() {
-  const lv = LEVELS[lvlIdx];
-  if(!lv.weather) { weather = []; return; }
-  weather.forEach(p => { p.x += p.vx; p.y += p.vy; });
-  weather = weather.filter(p => p.y < H + 20 && p.x > -20);
-  while(weather.length < (lv.weather === 'snow' ? 60 : 30)) spawnWeatherPtcl(false);
+  const lv=LEVELS[lvlIdx];
+  if(!lv.weather){weather=[];return;}
+  weather.forEach(p=>{p.x+=p.vx;p.y+=p.vy;});
+  weather=weather.filter(p=>p.y<H+20&&p.x>-20);
+  const n=lv.weather==='snow'?60:25;
+  while(weather.length<n) spawnPtcl(false);
 }
 
 function drawWeather() {
-  weather.forEach(p => {
-    ctx.save();
-    ctx.globalAlpha = p.a;
-    if(p.type === 'snow') {
-      ctx.fillStyle = '#e8f4ff';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fill();
+  weather.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=p.a;
+    if(p.type==='snow') {
+      ctx.fillStyle='#e8f4ff';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
     } else {
-      // Leaf
-      ctx.fillStyle = '#a8783a';
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, p.r*1.5, p.r*0.7, frame*0.05, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillStyle='#a8783a';
+      ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r*1.5,p.r*0.7,frame*0.05,0,Math.PI*2); ctx.fill();
     }
     ctx.restore();
   });
 }
 
-// ── LEVEL SYSTEM ─────────────────────────────────────────────────────────────
+// ── LEVEL ─────────────────────────────────────────────────────────────────────
 function updateLevel() {
-  const pips = document.querySelectorAll('.pip');
-  for(let i = LEVELS.length-1; i >= 0; i--) {
-    if(score >= LEVELS[i].threshold) {
-      if(i !== lvlIdx) {
-        lvlIdx = i;
+  for(let i=LEVELS.length-1;i>=0;i--) {
+    if(score>=LEVELS[i].threshold) {
+      if(i!==lvlIdx) {
+        lvlIdx=i;
         initWeather();
-        // Refresh building colours
-        buildings.forEach(b => {
-          const lv = LEVELS[lvlIdx];
-          b.col = lv.bld[Math.floor(Math.random() * lv.bld.length)];
+        buildings.forEach(b=>{
+          b.col=LEVELS[lvlIdx].bld[Math.floor(Math.random()*LEVELS[lvlIdx].bld.length)];
         });
       }
-      pips.forEach((p,j) => p.classList.toggle('on', j === i));
+      document.querySelectorAll('.pip').forEach((p,j)=>p.classList.toggle('on',j===i));
       return;
     }
   }
 }
 
-// ── GAME LOOP ─────────────────────────────────────────────────────────────────
+// ── LOOP ──────────────────────────────────────────────────────────────────────
 function resize() {
-  W = canvas.width  = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-  GH = CFG.groundH;
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  GH=CFG.groundH;
 }
 
 function reset() {
-  score = 0; frame = 0;
-  speed = CFG.baseSpeed;
-  lvlIdx = 0;
-  obs = [];
-  lastSpawn = 0;
-  document.getElementById('sv').textContent = 0;
-  document.getElementById('fs').textContent = 0;
-  document.querySelectorAll('.pip').forEach((p,i) => p.classList.toggle('on', i===0));
+  score=0;frame=0;speed=CFG.baseSpeed;lvlIdx=0;
+  obs=[];lastSpawn=0;
+  document.getElementById('sv').textContent=0;
+  document.getElementById('fs').textContent=0;
+  document.querySelectorAll('.pip').forEach((p,i)=>p.classList.toggle('on',i===0));
   player.reset();
   initBuildings();
   initWeather();
@@ -691,73 +694,56 @@ function reset() {
 
 function loop(ts) {
   requestAnimationFrame(loop);
+  if(state!=='play') return;
+  frame++; speed+=CFG.speedInc;
 
-  if(state !== 'play') return;
-
-  frame++;
-  speed += CFG.speedInc;
-
-  // Spawn
-  if(ts - lastSpawn > CFG.spawnMs - Math.min(300, score*2)) {
-    spawnObs();
-    lastSpawn = ts;
+  if(ts-lastSpawn > CFG.spawnMs-Math.min(250,score*2)) {
+    spawnObs(); lastSpawn=ts;
   }
 
-  ctx.clearRect(0, 0, W, H);
-
+  ctx.clearRect(0,0,W,H);
   drawBackground();
-  drawWeather();
-  updateWeather();
-  drawObs();
-  updateObs();
+  drawWeather(); updateWeather();
+  drawObs(); updateObs();
   player.update();
-  player.draw(lvlIdx);
+  player.draw();
 
-  // Collision
   if(checkCollisions()) {
-    state = 'dead';
-    document.getElementById('fs').textContent = score;
+    state='dead';
+    document.getElementById('fs').textContent=score;
     document.getElementById('over').classList.add('in');
-    document.getElementById('score').style.opacity = '0';
+    document.getElementById('score').style.opacity='0';
   }
 }
 
-// ── INPUT ─────────────────────────────────────────────────────────────────────
 function onInput() {
-  if(state === 'start') {
+  if(state==='start') {
     document.getElementById('start').classList.add('out');
-    document.getElementById('score').style.opacity = '1';
-    setTimeout(() => {
-      document.getElementById('start').style.display = 'none';
-    }, 900);
-    state = 'play';
-    return;
+    document.getElementById('score').style.opacity='1';
+    setTimeout(()=>{ document.getElementById('start').style.display='none'; },900);
+    state='play'; return;
   }
-  if(state === 'play') {
-    player.jump();
-  }
+  if(state==='play') player.jump();
 }
 
-document.getElementById('rbtn').addEventListener('click', e => {
+document.getElementById('rbtn').addEventListener('click', e=>{
   e.stopPropagation();
   document.getElementById('over').classList.remove('in');
-  state = 'start';
-  document.getElementById('start').style.display = 'flex';
-  setTimeout(() => {
+  state='start';
+  document.getElementById('start').style.display='flex';
+  setTimeout(()=>{
     document.getElementById('start').classList.remove('out');
-    document.getElementById('start').style.opacity = '';
-  }, 50);
+    document.getElementById('start').style.opacity='';
+  },50);
   reset();
 });
 
-canvas.addEventListener('click',     onInput);
-canvas.addEventListener('touchstart', e => { e.preventDefault(); onInput(); }, {passive:false});
-document.addEventListener('keydown',  e => { if(e.code==='Space'||e.code==='ArrowUp') onInput(); });
+canvas.addEventListener('click', onInput);
+canvas.addEventListener('touchstart', e=>{e.preventDefault();onInput();},{passive:false});
+document.addEventListener('keydown', e=>{if(e.code==='Space'||e.code==='ArrowUp')onInput();});
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', resize);
-resize();
-reset();
+resize(); reset();
 requestAnimationFrame(loop);
 </script>
 </body>
