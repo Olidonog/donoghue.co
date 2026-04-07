@@ -63,40 +63,48 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);font-fami
   </div>
 </div>
 <script>
+// === LEVELS ===
 const LV=[
-  {n:'prague',sky:['#c4cfd8','#b8c4cf','#d4dce4'],gr:'#6b7c6e',ga:'#5a6b5d',ob:'#4a5a4d',ot:'#3d4d40',bc:['#8a9e8c','#7d9080','#6b7c6e','#9aae9c'],th:0},
-  {n:'mtb',sky:['#a8c4a0','#b8d4b0','#98b490'],gr:'#5a7a4a',ga:'#4a6a3a',ob:'#3d6030',ot:'#2d5020',bc:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'],th:8},
-  {n:'golf',sky:['#b8d8a0','#c8e8b0','#a8c890'],gr:'#4a8a5a',ga:'#3a7a4a',ob:'#2d6a3d',ot:'#1d5a2d',bc:['#5a9a6a','#6aaa7a','#4a8a5a','#7aba8a'],th:20},
-  {n:'family',sky:['#d4c8bc','#e0d4c8','#c8bcb0'],gr:'#8a7868',ga:'#7a6858',ob:'#6a5848',ot:'#5a4838',bc:['#9a8878','#aa9888','#8a7868','#baaa98'],th:35},
-  {n:'snow',sky:['#d8e8f4','#e4f0f8','#ccdce8'],gr:'#d8e8f0',ga:'#c4d8e4',ob:'#a4b8c8',ot:'#90a8b8',bc:['#b8ccd8','#c8dce8','#a8bcc8','#d0e0ec'],th:55},
-  {n:'cargo',sky:['#c8c4b8','#d4d0c4','#bcb8ac'],gr:'#7a8070',ga:'#6a7060',ob:'#5a6050',ot:'#4d5344',bc:['#9a9888','#8a8878','#7a7868','#aaa898'],th:80}
+  {n:'prague',sky:['#c4cfd8','#b8c4cf','#d4dce4'],gr:'#6b7c6e',ga:'#5a6b5d',ob:'#4a5a4d',ot:'#3d4d40',pt:'#7a9a7d',bc:['#8a9e8c','#7d9080','#6b7c6e','#9aae9c'],th:0},
+  {n:'mtb',sky:['#a8c4a0','#b8d4b0','#98b490'],gr:'#5a7a4a',ga:'#4a6a3a',ob:'#3d6030',ot:'#2d5020',pt:'#4a7a3a',bc:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'],th:10},
+  {n:'golf',sky:['#b8d8a0','#c8e8b0','#a8c890'],gr:'#4a8a5a',ga:'#3a7a4a',ob:'#2d6a3d',ot:'#1d5a2d',pt:'#3a7a4a',bc:['#5a9a6a','#6aaa7a','#4a8a5a','#7aba8a'],th:22},
+  {n:'family',sky:['#d4c8bc','#e0d4c8','#c8bcb0'],gr:'#8a7868',ga:'#7a6858',ob:'#6a5848',ot:'#5a4838',pt:'#9a8878',bc:['#9a8878','#aa9888','#8a7868','#baaa98'],th:38},
+  {n:'snow',sky:['#d8e8f4','#e4f0f8','#ccdce8'],gr:'#d8e8f0',ga:'#c4d8e4',ob:'#a4b8c8',ot:'#90a8b8',pt:'#b8ccd8',bc:['#b8ccd8','#c8dce8','#a8bcc8','#d0e0ec'],th:58},
+  {n:'cargo',sky:['#c8c4b8','#d4d0c4','#bcb8ac'],gr:'#7a8070',ga:'#6a7060',ob:'#5a6050',ot:'#4d5344',pt:'#8a8878',bc:['#9a9888','#8a8878','#7a7868','#aaa898'],th:82}
 ];
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 let W,H,GY,PR;
-const GH=90; // ground height in pixels from bottom
-const PW=28,PH=40; // player width/height
-const GRAVITY=0.65,JUMP=-13,SPEED_BASE=5,SPEED_INC=0.003;
+const GH=90;
+const PW=26,PH=38;
+
+// Physics - feels snappy and fast
+const GRAV=0.7;
+const JUMP_FORCE=-15;
+const SPEED_START=8;      // starts fast
+const SPEED_MAX=18;
+const SPEED_INC=0.004;
+const MAX_JUMPS=2;        // double jump
 
 let state='start',score=0,speed,lvi,frame,bgo;
-let PX,PY,PVY,jumping,onGround; // player state
-let obstacles,bg,lastObs;
+let PX,PY,PVY,jumpsLeft,onGround;
+let walls,platforms,bg,lastSpawn,nextType;
 
 function resize(){
   PR=window.devicePixelRatio||1;
-  W=window.innerWidth; H=window.innerHeight;
+  W=innerWidth; H=innerHeight;
   cv.width=W*PR; cv.height=H*PR;
   cv.style.width=W+'px'; cv.style.height=H+'px';
   ctx.scale(PR,PR);
-  GY=H-GH; // y coordinate of ground surface
+  GY=H-GH;
   if(state!=='playing') drawIdle();
 }
-window.addEventListener('resize',resize);
+addEventListener('resize',resize);
 
 function initGame(){
-  state='playing'; score=0; speed=SPEED_BASE; lvi=0; frame=0; bgo=0;
-  PX=W*0.18; PY=GY-PH; PVY=0; jumping=false; onGround=true;
-  obstacles=[]; bg=[]; lastObs=Date.now()+1400;
+  state='playing'; score=0; speed=SPEED_START; lvi=0; frame=0; bgo=0;
+  PX=W*0.18; PY=GY-PH; PVY=0; jumpsLeft=MAX_JUMPS; onGround=true;
+  walls=[]; platforms=[]; bg=[]; lastSpawn=Date.now()+1200; nextType=0;
   initBG();
   document.getElementById('ss').classList.add('h');
   document.getElementById('gs').classList.remove('v');
@@ -106,86 +114,114 @@ function initGame(){
   document.getElementById('d0').classList.add('a');
 }
 
-// ── BACKGROUND ──
+// === BACKGROUND ===
 function initBG(){
   bg=[];
   const lv=LV[lvi];
-  for(let i=0;i<14;i++) bg.push({
-    x:Math.random()*W*1.5,
-    h:20+Math.random()*70,
-    w:12+Math.random()*30,
-    col:lv.bc[Math.floor(Math.random()*lv.bc.length)],
-    spd:0.2+Math.random()*0.4
+  for(let i=0;i<16;i++) bg.push({
+    x:Math.random()*W*1.4, h:15+Math.random()*65, w:10+Math.random()*28,
+    col:lv.bc[Math.floor(Math.random()*lv.bc.length)], spd:0.15+Math.random()*0.35
   });
 }
-
 function drawBG(){
   const lv=LV[lvi];
   const g=ctx.createLinearGradient(0,0,0,GY);
   g.addColorStop(0,lv.sky[0]); g.addColorStop(.6,lv.sky[1]); g.addColorStop(1,lv.sky[2]);
   ctx.fillStyle=g; ctx.fillRect(0,0,W,GY);
-  // buildings
-  bg.forEach(b=>{
-    ctx.fillStyle=b.col;
-    ctx.fillRect(b.x-b.w/2,GY-b.h,b.w,b.h);
-  });
-  // snow particles
-  if(lvi===4){
-    ctx.fillStyle='rgba(255,255,255,.6)';
-    for(let i=0;i<20;i++) ctx.fillRect((bgo+i*67)%W,(bgo*.7+i*91)%(GY*.9),2,2);
-  }
-  // ground
+  bg.forEach(b=>{ ctx.fillStyle=b.col; ctx.fillRect(b.x-b.w/2,GY-b.h,b.w,b.h); });
+  if(lvi===4){ ctx.fillStyle='rgba(255,255,255,.55)'; for(let i=0;i<22;i++) ctx.fillRect((bgo+i*61)%W,(bgo*.6+i*89)%(GY*.85),2,2); }
   ctx.fillStyle=lv.gr; ctx.fillRect(0,GY,W,GH);
   ctx.fillStyle=lv.ga; ctx.fillRect(0,GY,W,5);
-  // golf stripes
-  if(lvi===2){ ctx.fillStyle='rgba(0,0,0,.04)'; for(let i=0;i<14;i++){const sx=(bgo*2+i*55)%W; ctx.fillRect(sx,GY+5,22,GH-5);}}
+  if(lvi===2){ ctx.fillStyle='rgba(0,0,0,.04)'; for(let i=0;i<16;i++){const sx=(bgo*2.2+i*50)%W; ctx.fillRect(sx,GY+5,20,GH-5);} }
 }
-
 function updBG(){
-  bgo=(bgo+speed*.25)%W;
+  bgo=(bgo+speed*.2)%W;
   bg.forEach(b=>{
-    b.x-=b.spd*speed*.15;
-    if(b.x<-b.w){ const lv=LV[lvi]; b.x=W+b.w; b.col=lv.bc[Math.floor(Math.random()*lv.bc.length)];}
+    b.x-=b.spd*speed*.12;
+    if(b.x<-b.w){ const lv=LV[lvi]; b.x=W+b.w; b.col=lv.bc[Math.floor(Math.random()*lv.bc.length)]; }
   });
 }
 
-// ── OBSTACLES ── walls/hurdles on the ground
-function spawnObs(){
+// === OBSTACLES: walls + platforms ===
+// obstacle types:
+//   wall:     tall ground wall - must jump over
+//   low:      short wall - can jump over or duck (just jump)
+//   platform: floating platform mid-air - land on top, or slide under
+//   gap:      2 walls with gap - must time jump to land between
+
+function spawnNext(){
   const lv=LV[lvi];
-  const h=35+Math.random()*50; // obstacle height 35-85px
-  const w=22+Math.random()*18; // width 22-40px
-  obstacles.push({x:W+30, h, w, col:lv.ob, top:lv.ot, passed:false});
-}
+  const spawnX=W+60;
+  const r=Math.random();
 
-function updObs(){
-  const now=Date.now();
-  const interval=Math.max(900, 1600-score*8); // gaps shrink with score
-  if(now-lastObs>interval){ spawnObs(); lastObs=now; }
-  obstacles.forEach(o=>o.x-=speed);
-  obstacles=obstacles.filter(o=>o.x>-100);
-  obstacles.forEach(o=>{
-    if(!o.passed && o.x+o.w/2<PX){
-      o.passed=true; score++;
-      document.getElementById('sv').textContent=score;
-      checkLevel();
+  // weight platform spawns more as score rises
+  const platChance = Math.min(0.45, 0.1 + score*0.008);
+
+  if(r < platChance){
+    // floating platform - land on it to continue
+    const pw=70+Math.random()*80;
+    const ph=14;
+    const py=GY - 90 - Math.random()*120; // height: 90-210px above ground
+    platforms.push({x:spawnX, y:py, w:pw, h:ph, col:lv.pt, top:lv.ot, passed:false});
+    // sometimes add a wall after the platform
+    if(Math.random()>0.5){
+      const wh=30+Math.random()*40;
+      walls.push({x:spawnX+pw+80+Math.random()*60, h:wh, w:20+Math.random()*14, col:lv.ob, top:lv.ot, passed:false});
     }
-  });
+  } else if(r < platChance+0.15 && score>5){
+    // paired walls with gap - jump into the gap
+    const gap=90+Math.random()*60;
+    const wh=50+Math.random()*60;
+    const ww=22+Math.random()*12;
+    walls.push({x:spawnX, h:wh, w:ww, col:lv.ob, top:lv.ot, passed:false});
+    walls.push({x:spawnX+ww+gap, h:wh+20, w:ww, col:lv.ob, top:lv.ot, passed:false});
+  } else {
+    // single wall, varied height
+    const h = score<8 ? 35+Math.random()*30 : 30+Math.random()*65;
+    walls.push({x:spawnX, h, w:20+Math.random()*16, col:lv.ob, top:lv.ot, passed:false});
+  }
 }
 
-function drawObs(){
-  obstacles.forEach(o=>{
-    // main body
-    ctx.fillStyle=o.col;
-    ctx.fillRect(o.x-o.w/2, GY-o.h, o.w, o.h);
-    // top cap
-    ctx.fillStyle=o.top;
-    ctx.fillRect(o.x-o.w/2-3, GY-o.h, o.w+6, 8);
+function updObstacles(){
+  const now=Date.now();
+  const interval=Math.max(700, 1500 - score*12);
+  if(now-lastSpawn>interval){ spawnNext(); lastSpawn=now; }
+
+  walls.forEach(o=>{ o.x-=speed; });
+  platforms.forEach(p=>{ p.x-=speed; });
+  walls=walls.filter(o=>o.x>-120);
+  platforms=platforms.filter(p=>p.x>-200);
+
+  // score when passing obstacles
+  walls.forEach(o=>{ if(!o.passed&&o.x+o.w/2<PX){ o.passed=true; score++; onScore(); } });
+  platforms.forEach(p=>{ if(!p.passed&&p.x+p.w<PX){ p.passed=true; score++; onScore(); } });
+}
+
+function onScore(){
+  document.getElementById('sv').textContent=score;
+  checkLevel();
+}
+
+function drawObstacles(){
+  const lv=LV[lvi];
+  walls.forEach(o=>{
+    ctx.fillStyle=o.col; ctx.fillRect(o.x-o.w/2, GY-o.h, o.w, o.h);
+    ctx.fillStyle=o.top; ctx.fillRect(o.x-o.w/2-3, GY-o.h, o.w+6, 8);
+  });
+  platforms.forEach(p=>{
+    // platform underside shadow
+    ctx.fillStyle='rgba(0,0,0,.15)';
+    ctx.fillRect(p.x+3, p.y+p.h, p.w, 4);
+    // platform body
+    ctx.fillStyle=p.col; ctx.fillRect(p.x, p.y, p.w, p.h);
+    // platform top edge highlight
+    ctx.fillStyle=p.top; ctx.fillRect(p.x, p.y, p.w, 4);
   });
 }
 
 function checkLevel(){
   for(let i=LV.length-1;i>=0;i--){
-    if(score>=LV[i].th && lvi!==i && i>lvi){
+    if(score>=LV[i].th&&lvi!==i&&i>lvi){
       lvi=i; initBG();
       document.getElementById('d'+lvi).classList.add('a');
       break;
@@ -193,115 +229,120 @@ function checkLevel(){
   }
 }
 
-// ── PLAYER ──
+// === PLAYER ===
 function updPlayer(){
-  if(!onGround){
-    PVY+=GRAVITY;
-    PY+=PVY;
-    if(PY>=GY-PH){ PY=GY-PH; PVY=0; onGround=true; jumping=false; }
+  PVY+=GRAV;
+  PY+=PVY;
+
+  onGround=false;
+
+  // ground collision
+  if(PY>=GY-PH){
+    PY=GY-PH; PVY=0; onGround=true; jumpsLeft=MAX_JUMPS;
   }
+
+  // platform collision - land on top only (falling down onto platform)
+  platforms.forEach(p=>{
+    const prevPY=PY-PVY; // where we were last frame
+    const feetY=PY; // bottom of player = PY (since PY is bottom)
+    const prevFeet=prevPY;
+    if(PX+PW/2-6>p.x && PX-PW/2+6<p.x+p.w){
+      // landing on top
+      if(PVY>=0 && prevFeet<=p.y && feetY>=p.y){
+        PY=p.y; PVY=0; onGround=true; jumpsLeft=MAX_JUMPS;
+      }
+    }
+  });
+
+  // ceiling
+  if(PY<0){ PY=0; PVY=0; }
 }
 
 function drawPlayer(){
   ctx.save();
   ctx.translate(PX, PY);
-  // squash/stretch
-  const scaleY = onGround ? 1 : (PVY<0?1.1:0.95);
-  const scaleX = onGround ? 1 : (PVY<0?0.9:1.05);
-  ctx.scale(scaleX, scaleY);
-  drawAvatar(lvi);
+  // squash on land, stretch on jump
+  const sy=onGround?1:(PVY<-4?1.12:PVY>4?0.92:1);
+  const sx=onGround?1:(PVY<-4?0.88:1);
+  ctx.scale(sx,sy);
+  drawAv(lvi);
   ctx.restore();
 }
 
-function drawAvatar(l){
-  const hw=PW/2, hh=PH/2;
-  // body
-  ctx.fillStyle='#1a1a18';
-  ctx.fillRect(-hw+3,-hh+10,PW-6,PH-18);
-  // head
-  ctx.fillStyle='#d4b896';
-  ctx.fillRect(-hw+6,-hh,PW-8,13);
-  // hair
-  ctx.fillStyle='#2a2420';
-  ctx.fillRect(-hw+5,-hh-3,PW-7,6);
-  // eye
-  ctx.fillStyle='#1a1a18';
-  ctx.fillRect(hw-9,-hh+5,2,2);
-  // legs - animate when running
-  const legPhase=Math.sin(frame*0.28)*5;
+function drawAv(l){
+  const hw=PW/2,hh=PH/2;
+  ctx.fillStyle='#1a1a18'; ctx.fillRect(-hw+3,-hh+10,PW-6,PH-18);
+  ctx.fillStyle='#d4b896'; ctx.fillRect(-hw+6,-hh,PW-8,13);
+  ctx.fillStyle='#2a2420'; ctx.fillRect(-hw+5,-hh-3,PW-7,6);
+  ctx.fillStyle='#1a1a18'; ctx.fillRect(hw-9,-hh+5,2,2);
+  // animated legs
+  const lp=onGround?Math.sin(frame*0.32)*6:0;
   ctx.fillStyle='#2a2a28';
-  ctx.fillRect(-hw+4, hh-8+legPhase, 7, 7);
-  ctx.fillRect(-hw+13, hh-8-legPhase, 7, 7);
+  ctx.fillRect(-hw+3,hh-9+lp,7,8);
+  ctx.fillRect(-hw+13,hh-9-lp,7,8);
   // level overlays
-  if(l===1){ // mtb - helmet
-    ctx.fillStyle='#3a7a3a'; ctx.fillRect(-hw+4,-hh-5,PW-5,8);
-    ctx.fillStyle='#2a6a2a'; ctx.fillRect(-hw+3,-hh,3,5);
-  } else if(l===2){ // golf - cap
-    ctx.fillStyle='#f0e8d0'; ctx.fillRect(-hw+4,-hh-4,PW-6,6);
-    ctx.fillRect(hw-5,-hh-2,6,3);
-  } else if(l===3){ // family - dog
-    ctx.strokeStyle='#8a7060'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(hw-3,2); ctx.lineTo(hw+16,0); ctx.stroke();
-    ctx.fillStyle='#c8a878';
-    ctx.fillRect(hw+12,-8,10,7); ctx.fillRect(hw+15,-13,8,6);
-    ctx.fillRect(hw+14,0,4,5); ctx.fillRect(hw+19,0,4,5);
-  } else if(l===4){ // snow - beanie
-    ctx.fillStyle='#c04040'; ctx.fillRect(-hw+4,-hh-6,PW-5,8);
-    ctx.fillStyle='#d0c080'; ctx.fillRect(hw-11,-hh+4,6,4);
-  } else if(l===5){ // cargo - handlebar
-    ctx.fillStyle='#4a4a48';
-    ctx.fillRect(hw-5,-hh+14,3,9); ctx.fillRect(hw-7,-hh+13,7,2);
-  }
+  if(l===1){ctx.fillStyle='#3a7a3a';ctx.fillRect(-hw+4,-hh-5,PW-5,8);ctx.fillStyle='#2a6a2a';ctx.fillRect(-hw+3,-hh,3,5);}
+  else if(l===2){ctx.fillStyle='#f0e8d0';ctx.fillRect(-hw+4,-hh-4,PW-6,6);ctx.fillRect(hw-5,-hh-2,6,3);}
+  else if(l===3){ctx.strokeStyle='#8a7060';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hw-3,2);ctx.lineTo(hw+16,0);ctx.stroke();ctx.fillStyle='#c8a878';ctx.fillRect(hw+12,-8,10,7);ctx.fillRect(hw+15,-13,8,6);ctx.fillRect(hw+14,0,4,5);ctx.fillRect(hw+19,0,4,5);}
+  else if(l===4){ctx.fillStyle='#c04040';ctx.fillRect(-hw+4,-hh-6,PW-5,8);ctx.fillStyle='#d0c080';ctx.fillRect(hw-11,-hh+4,6,4);}
+  else if(l===5){ctx.fillStyle='#4a4a48';ctx.fillRect(hw-5,-hh+14,3,9);ctx.fillRect(hw-7,-hh+13,7,2);}
 }
 
-// ── COLLISION ──
+// === COLLISION (death) ===
 function checkCollision(){
-  const px=PX-PW/2+4, py=PY-PH/2+4, pw=PW-8, ph=PH-8;
-  for(const o of obstacles){
-    const ox=o.x-o.w/2, oy=GY-o.h, ow=o.w, oh=o.h;
-    if(px<ox+ow && px+pw>ox && py+ph>oy && py<oy+oh) return true;
+  const px=PX-PW/2+4, py=PY-PH+4, pw=PW-8, ph=PH-8;
+  for(const o of walls){
+    const ox=o.x-o.w/2, oy=GY-o.h;
+    if(px<ox+o.w && px+pw>ox && py+ph>oy && py<oy+o.h) return true;
   }
   return false;
 }
 
-// ── JUMP ──
-function jump(){
-  if(onGround){ PVY=JUMP; onGround=false; jumping=true; }
+// === INPUT ===
+function doJump(){
+  if(jumpsLeft>0){
+    PVY=JUMP_FORCE * (jumpsLeft===MAX_JUMPS ? 1 : 0.82); // second jump slightly lower
+    onGround=false;
+    jumpsLeft--;
+  }
 }
-
-// ── INPUT ──
 function handleInput(){
   if(state==='start') initGame();
-  else if(state==='playing') jump();
+  else if(state==='playing') doJump();
 }
-document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();handleInput();} });
-cv.addEventListener('click', handleInput);
+
+document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();handleInput();}});
+cv.addEventListener('click',handleInput);
 cv.addEventListener('touchstart',e=>{e.preventDefault();handleInput();},{passive:false});
 document.getElementById('rb').addEventListener('click',e=>{e.stopPropagation();initGame();});
 
-// ── IDLE FRAME ──
+// === IDLE ===
 function drawIdle(){
-  if(!W) return;
+  if(!W)return;
   ctx.clearRect(0,0,W,H);
   const lv=LV[0];
   const g=ctx.createLinearGradient(0,0,0,GY||H*.85);
-  g.addColorStop(0,lv.sky[0]); g.addColorStop(1,lv.sky[2]);
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle=lv.gr; ctx.fillRect(0,GY||H*.85,W,H);
-  ctx.fillStyle=lv.ga; ctx.fillRect(0,GY||H*.85,W,5);
+  g.addColorStop(0,lv.sky[0]);g.addColorStop(1,lv.sky[2]);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=lv.gr;ctx.fillRect(0,GY||H*.85,W,H);
+  ctx.fillStyle=lv.ga;ctx.fillRect(0,GY||H*.85,W,5);
 }
 
-// ── MAIN LOOP ──
-let raf;
+// === LOOP ===
 function loop(){
-  raf=requestAnimationFrame(loop);
-  if(state!=='playing'){ if(state==='start') drawIdle(); return; }
+  requestAnimationFrame(loop);
+  if(state!=='playing'){if(state==='start')drawIdle();return;}
   frame++;
-  speed=SPEED_BASE+score*SPEED_INC;
-  updBG(); updObs(); updPlayer();
-  if(checkCollision()){ die(); return; }
+  speed=Math.min(SPEED_MAX, SPEED_START+score*SPEED_INC*60);
+  updBG();updObstacles();updPlayer();
+  if(checkCollision()){die();return;}
   ctx.clearRect(0,0,W,H);
-  drawBG(); drawObs(); drawPlayer();
+  drawBG();drawObstacles();drawPlayer();
+  // speed indicator - subtle
+  if(score>0){
+    ctx.fillStyle='rgba(15,15,13,.12)';
+    ctx.fillRect(0,H-3,W*(speed-SPEED_START)/(SPEED_MAX-SPEED_START),3);
+  }
 }
 
 function die(){
