@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Mode: Oli</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Playfair+Display:ital,wght@1,400&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --ink: #0f0f0d;
+  --paper: #f4f1eb;
+  --muted: #8a8578;
+}
+
+html,body {
+  width:100%;height:100%;
+  overflow:hidden;
+  background:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  touch-action:none;
+}
+
+#canvas {
+  display:block;
+  width:100vw;height:100vh;
+  cursor:pointer;
+}
+
+#ui {
+  position:fixed;inset:0;
+  pointer-events:none;
+  z-index:10;
+  font-family:'DM Mono',monospace;
+}
+
+#start {
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:var(--paper);
+  transition:opacity 0.8s ease;
+}
+#start.out { opacity:0; pointer-events:none; }
+
+.wordmark {
+  font-size:clamp(9px,1vw,11px);
+  font-weight:300;
+  letter-spacing:0.4em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:56px;
+}
+
+.mode-tag {
+  font-size:clamp(9px,0.9vw,11px);
+  font-weight:300;
+  letter-spacing:0.5em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+
+.title-oli {
+  font-family:'Playfair Display',serif;
+  font-style:italic;
+  font-size:clamp(72px,10vw,120px);
+  color:var(--ink);
+  line-height:0.9;
+  letter-spacing:-0.02em;
+  margin-bottom:56px;
+}
+
+.start-hint {
+  font-size:clamp(9px,0.9vw,11px);
+  font-weight:300;
+  letter-spacing:0.35em;
+  text-transform:uppercase;
+  color:var(--muted);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,100%{opacity:0.4} 50%{opacity:1}
+}
+
+.level-pips {
+  position:absolute;
+  bottom:40px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;
+}
+.pip {
+  width:5px;height:5px;border-radius:50%;
+  background:var(--muted);opacity:0.25;
+  transition:opacity 0.4s,background 0.4s;
+}
+.pip.on { opacity:1; background:var(--ink); }
+
+#score {
+  position:absolute;
+  top:28px;left:50%;transform:translateX(-50%);
+  font-size:11px;font-weight:300;
+  letter-spacing:0.25em;text-transform:uppercase;
+  color:var(--ink);opacity:0;
+  transition:opacity 0.4s;
+}
+
+#over {
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:var(--paper);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.6s ease;
+}
+#over.in { opacity:1; pointer-events:all; }
+
+.over-label {
+  font-size:clamp(9px,0.9vw,11px);
+  font-weight:300;letter-spacing:0.5em;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:8px;
+}
+.over-name {
+  font-family:'Playfair Display',serif;
+  font-style:italic;
+  font-size:clamp(52px,7vw,88px);
+  color:var(--ink);line-height:0.9;
+  margin-bottom:32px;
+}
+.over-rule {
+  width:40px;height:1px;
+  background:rgba(15,15,13,0.2);
+  margin-bottom:32px;
+}
+.over-id { text-align:center;margin-bottom:28px; }
+.over-fullname {
+  font-size:clamp(10px,1.1vw,13px);
+  font-weight:500;letter-spacing:0.15em;
+  text-transform:uppercase;color:var(--ink);
+  margin-bottom:6px;
+}
+.over-email {
+  font-size:clamp(9px,1vw,11px);
+  font-weight:300;letter-spacing:0.1em;
+  color:var(--muted);margin-bottom:4px;
+}
+.over-role {
+  font-size:clamp(8px,0.85vw,10px);
+  font-weight:300;letter-spacing:0.2em;
+  color:var(--muted);opacity:0.6;
+}
+.over-dist {
+  font-size:clamp(9px,0.9vw,11px);
+  font-weight:300;letter-spacing:0.25em;
+  text-transform:uppercase;color:var(--muted);
+  margin:24px 0;
+}
+.over-dist span { color:var(--ink);font-weight:400; }
+
+.play-btn {
+  font-family:'DM Mono',monospace;
+  font-size:clamp(9px,0.9vw,11px);
+  font-weight:400;letter-spacing:0.35em;
+  text-transform:uppercase;
+  color:var(--ink);background:transparent;
+  border:1px solid rgba(15,15,13,0.25);
+  padding:14px 32px;cursor:pointer;
+  pointer-events:all;
+  transition:all 0.2s ease;
+}
+.play-btn:hover { background:var(--ink);color:var(--paper);border-color:var(--ink); }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="ui">
+  <div id="start">
+    <div class="wordmark">donoghue.co</div>
+    <div class="mode-tag">Mode</div>
+    <div class="title-oli">Oli</div>
+    <div class="start-hint">tap to begin</div>
+    <div class="level-pips">
+      <div class="pip on" id="p0"></div>
+      <div class="pip" id="p1"></div>
+      <div class="pip" id="p2"></div>
+      <div class="pip" id="p3"></div>
+      <div class="pip" id="p4"></div>
+      <div class="pip" id="p5"></div>
+    </div>
+  </div>
+  <div id="score">Distance — <span id="sv">0</span></div>
+  <div id="over">
+    <div class="over-label">Mode ended</div>
+    <div class="over-name">Oli</div>
+    <div class="over-rule"></div>
+    <div class="over-id">
+      <div class="over-fullname">Oli Donoghue</div>
+      <div class="over-email">oli@donoghue.co</div>
+      <div class="over-role">Commercial partnerships &amp; strategy</div>
+    </div>
+    <div class="over-dist">Distance — <span id="fs">0</span></div>
+    <button class="play-btn" id="rbtn">Play again</button>
+  </div>
+</div>
+
+<script>
+const CFG = {
+  gravity:    0.36,
+  jump:      -7.0,
+  baseSpeed:  4.0,
+  speedInc:   0.0006,
+  gap:        240,   // wider gap — easier for kids
+  spawnMs:    1700,
+  groundH:    72,
+  trailLen:   8,
+};
+
+const LEVELS = [
+  { name:'Prague',    threshold:0,  sky:['#bec9d2','#c8d3dc','#d4dde6'], fog:'rgba(180,192,202,0.18)', ground:'#6b7c6e', gndAccent:'#5a6b5d', obs:'#4a5a4d', obsTop:'#3a4a3d', bld:['#8a9e8c','#7a8e7e','#9aae9c','#6a7e6c'], weather:null },
+  { name:'MTB',       threshold:10, sky:['#a4c09c','#b4d0ac','#94b08c'], fog:'rgba(148,186,136,0.12)', ground:'#5a7a4a', gndAccent:'#4a6a3a', obs:'#3a6030', obsTop:'#2a5020', bld:['#6a8a5a','#7a9a6a','#5a7a4a','#8aaa7a'], weather:'leaves' },
+  { name:'Golf',      threshold:25, sky:['#b4d89c','#c4e8ac','#a4c88c'], fog:'rgba(164,200,140,0.1)',  ground:'#4a8a5a', gndAccent:'#3a7a4a', obs:'#2a6a3a', obsTop:'#1a5a2a', bld:['#5a9a6a','#6aaa7a','#4a8a5a','#7aba8a'], weather:null },
+  { name:'Family',    threshold:42, sky:['#d0c4b8','#dcd0c4','#c4b8ac'], fog:'rgba(200,184,168,0.15)', ground:'#8a7868', gndAccent:'#7a6858', obs:'#6a5848', obsTop:'#5a4838', bld:['#9a8878','#aa9888','#8a7868','#baaa98'], weather:null },
+  { name:'Snow',      threshold:60, sky:['#d4e8f4','#e0f0f8','#c8dcea'], fog:'rgba(210,230,242,0.2)',  ground:'#d4e4ee', gndAccent:'#c0d4e2', obs:'#a0b8c8', obsTop:'#8ca8b8', bld:['#b4ccd8','#c4dce8','#a4bcc8','#ccdce8'], weather:'snow' },
+  { name:'Cargo',     threshold:82, sky:['#c4c0b4','#d0ccc0','#b8b4a8'], fog:'rgba(188,184,172,0.15)', ground:'#7a8070', gndAccent:'#6a7060', obs:'#5a6050', obsTop:'#4a5040', bld:['#9a9888','#8a8878','#aa9898','#7a7868'], weather:null },
+];
+
+let state='start', score=0, frame=0, speed=CFG.baseSpeed, lvlIdx=0;
+let lastSpawn=0, weather=[], buildings=[];
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let W,H,GH;
+
+// ── PLAYER ────────────────────────────────────────────────────────────────────
+const player = {
+  x:0, y:0, vy:0, w:32, h:36,
+  trail:[],
+
+  reset() { this.x=W*0.22; this.y=H*0.46; this.vy=0; this.trail=[]; },
+  jump()  { this.vy=CFG.jump; },
+
+  update() {
+    this.vy += CFG.gravity;
+    this.y  += this.vy;
+    this.trail.unshift({x:this.x, y:this.y});
+    if(this.trail.length > CFG.trailLen) this.trail.pop();
+  },
+
+  hitbox() {
+    return { x:this.x-this.w/2+6, y:this.y-this.h/2+4, w:this.w-12, h:this.h-8 };
+  },
+
+  draw() {
+    // Trail
+    this.trail.forEach((t,i) => {
+      ctx.save();
+      ctx.globalAlpha = (1-i/CFG.trailLen)*0.09;
+      ctx.fillStyle = LEVELS[lvlIdx].ground;
+      ctx.fillRect(t.x-this.w/2+5, t.y-this.h/2+5, this.w-10, this.h-10);
+      ctx.restore();
+    });
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    const tilt = Math.max(-0.4, Math.min(0.3, this.vy*0.025));
+    ctx.rotate(tilt);
+    drawAvatar(lvlIdx);
+    ctx.restore();
+  }
+};
+
+// ── AVATAR VARIANTS ───────────────────────────────────────────────────────────
+// Each level gets a fully distinct avatar pose/equipment
+function drawAvatar(lv) {
+  const w=player.w, h=player.h;
+  const hw=w/2, hh=h/2;
+
+  if(lv === 0) {
+    // ── PRAGUE: Walking, scarf, hands in pockets ──
+    // Legs (walking)
+    ctx.fillStyle='#2a2a28';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    ctx.fillRect(-hw+15, hh-8, 8, 8);
+    // Body
+    ctx.fillStyle='#2a3040';
+    ctx.fillRect(-hw+3, -hh+10, w-6, h-20);
+    // Scarf
+    ctx.fillStyle='#9a4a3a';
+    ctx.fillRect(-hw+3, -hh+14, w-4, 5);
+    ctx.fillStyle='#b05a48';
+    ctx.fillRect(hw-6, -hh+14, 8, 10);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh, w-10, 12);
+    // Hair
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, w-8, 5);
+    // Eye
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-9, -hh+5, 2, 2);
+
+  } else if(lv === 1) {
+    // ── MTB: Crouched on bike ──
+    // Bike wheels
+    ctx.strokeStyle='#2a2a28'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(-hw+6, hh+2, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hw-4, hh+2, 9, 0, Math.PI*2); ctx.stroke();
+    // Bike frame
+    ctx.strokeStyle='#4a4a48'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(-hw+6, hh+2); ctx.lineTo(0, hh-8); ctx.lineTo(hw-4, hh+2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, hh-8); ctx.lineTo(-hw+12, -hh+18);
+    ctx.stroke();
+    // Handlebar
+    ctx.fillStyle='#3a3a38';
+    ctx.fillRect(hw-10, -hh+14, 3, 10);
+    ctx.fillRect(hw-14, -hh+12, 8, 3);
+    // Body (crouched forward)
+    ctx.fillStyle='#1a3a1a';
+    ctx.fillRect(-hw+8, -hh+8, w-10, h-22);
+    // Helmet
+    ctx.fillStyle='#e84040';
+    ctx.beginPath();
+    ctx.ellipse(-hw+13, -hh+2, 10, 7, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle='#c03030';
+    ctx.fillRect(-hw+4, -hh+3, 18, 4);
+    // Face / visor
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+8, -hh+6, w-14, 8);
+    ctx.fillStyle='rgba(180,220,255,0.6)';
+    ctx.fillRect(hw-12, -hh+6, 7, 5);
+    // Arms reaching forward
+    ctx.fillStyle='#1a3a1a';
+    ctx.fillRect(hw-14, -hh+14, 10, 5);
+
+  } else if(lv === 2) {
+    // ── GOLF: Mid-swing stance ──
+    // Club shaft
+    ctx.strokeStyle='#8a8070'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(hw-2, -hh-8);
+    ctx.lineTo(-hw-4, hh+4);
+    ctx.stroke();
+    // Club head
+    ctx.fillStyle='#6a6058';
+    ctx.fillRect(-hw-8, hh+2, 10, 5);
+    // Back leg
+    ctx.fillStyle='#e8e0d0';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    // Front leg (planted)
+    ctx.fillStyle='#d8d0c0';
+    ctx.fillRect(-hw+15, hh-12, 8, 12);
+    // Body (rotated into swing)
+    ctx.fillStyle='#f0e8d8';
+    ctx.fillRect(-hw+3, -hh+10, w-6, h-20);
+    // Polo shirt stripe
+    ctx.fillStyle='#d0c8b8';
+    ctx.fillRect(-hw+3, -hh+20, w-6, 3);
+    // Arms (swinging)
+    ctx.fillStyle='#f0e8d8';
+    ctx.fillRect(-hw+2, -hh+10, 6, 14);
+    ctx.fillRect(hw-8, -hh+8, 6, 12);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh+1, w-10, 11);
+    // Cap
+    ctx.fillStyle='#f4f0e4';
+    ctx.fillRect(-hw+5, -hh-3, w-8, 6);
+    ctx.fillRect(hw-4, -hh-1, 6, 4);
+    // Hair / Eye
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, 10, 3);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-10, -hh+5, 2, 2);
+
+  } else if(lv === 3) {
+    // ── FAMILY: Walking with dog on lead ──
+    // Dog (ahead of player)
+    ctx.fillStyle='#c8a870';
+    ctx.fillRect(hw+8, hh-14, 14, 9);   // body
+    ctx.fillRect(hw+8,  hh-6, 3, 5);    // front leg
+    ctx.fillRect(hw+17, hh-6, 3, 5);    // back leg
+    ctx.fillRect(hw+12, hh-19, 10, 7);  // head
+    ctx.fillRect(hw+20, hh-16, 5, 3);   // snout
+    ctx.fillStyle='#2a1a0a';
+    ctx.fillRect(hw+13, hh-17, 2, 2);   // eye
+    // Tail up
+    ctx.strokeStyle='#c8a870'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(hw+8, hh-12);
+    ctx.quadraticCurveTo(hw+4, hh-22, hw+7, hh-24);
+    ctx.stroke();
+    // Lead
+    ctx.strokeStyle='#8a7060'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(hw-2, hh-6);
+    ctx.quadraticCurveTo(hw+8, hh-2, hw+12, hh-8);
+    ctx.stroke();
+    // Legs
+    ctx.fillStyle='#3a3a58';
+    ctx.fillRect(-hw+4, hh-10, 8, 10);
+    ctx.fillRect(-hw+15, hh-8, 8, 8);
+    // Body
+    ctx.fillStyle='#6a8aaa';
+    ctx.fillRect(-hw+3, -hh+10, w-5, h-20);
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh, w-10, 12);
+    ctx.fillStyle='#2a2420';
+    ctx.fillRect(-hw+6, -hh-2, w-8, 5);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-9, -hh+5, 2, 2);
+
+  } else if(lv === 4) {
+    // ── SNOW: Full snowboard stance ──
+    // Snowboard (rotated slightly)
+    ctx.save();
+    ctx.rotate(0.1);
+    ctx.fillStyle='#e03030';
+    ctx.fillRect(-hw-4, hh+2, w+14, 6);
+    ctx.fillStyle='#ff6060';
+    ctx.fillRect(-hw-2, hh+2, 6, 3);  // nose stripe
+    ctx.restore();
+    // Back leg
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+3, hh-12, 9, 12);
+    // Front leg (bent)
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+16, hh-14, 9, 14);
+    // Body (low crouch)
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw+2, -hh+12, w-4, h-24);
+    // Jacket pocket / detail
+    ctx.fillStyle='#2a3a5a';
+    ctx.fillRect(-hw+4, -hh+20, 10, 8);
+    // Arms out for balance
+    ctx.fillStyle='#1a2a4a';
+    ctx.fillRect(-hw-4, -hh+14, 10, 5);  // back arm
+    ctx.fillRect(hw-6, -hh+12, 10, 5);   // front arm
+    // Head
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+7, -hh+4, w-10, 10);
+    // Helmet
+    ctx.fillStyle='#1a2a4a';
+    ctx.beginPath();
+    ctx.ellipse(-hw+13, -hh+5, 11, 8, 0, Math.PI, 0);
+    ctx.fill();
+    // Goggles
+    ctx.fillStyle='#d4b030';
+    ctx.fillRect(-hw+6, -hh+5, w-8, 5);
+    ctx.fillStyle='rgba(255,240,100,0.5)';
+    ctx.fillRect(-hw+8, -hh+6, w-12, 3);
+    // Beanie roll
+    ctx.fillStyle='#c03030';
+    ctx.fillRect(-hw+6, -hh+1, w-8, 5);
+
+  } else if(lv === 5) {
+    // ── CARGO: On cargo bike with load ──
+    // Cargo box (front)
+    ctx.fillStyle='#8a7050';
+    ctx.fillRect(-hw-10, -hh+10, 16, 20);
+    ctx.fillStyle='#7a6040';
+    ctx.fillRect(-hw-9, -hh+11, 14, 3);  // lid line
+    ctx.strokeStyle='#6a5030'; ctx.lineWidth=1;
+    ctx.strokeRect(-hw-10, -hh+10, 16, 20);
+    // Wheels
+    ctx.strokeStyle='#2a2a28'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(-hw+2, hh+4, 10, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hw-2, hh+4, 10, 0, Math.PI*2); ctx.stroke();
+    // Frame
+    ctx.strokeStyle='#5a5a58'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(-hw+2, hh+4); ctx.lineTo(-hw+8, hh-10); ctx.lineTo(hw-2, hh+4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-hw+8, hh-10); ctx.lineTo(-hw+10, -hh+20);
+    ctx.stroke();
+    // Handlebar
+    ctx.fillStyle='#3a3a38';
+    ctx.fillRect(hw-8, -hh+14, 3, 10);
+    ctx.fillRect(hw-12, -hh+12, 8, 3);
+    // Body
+    ctx.fillStyle='#2a3a2a';
+    ctx.fillRect(-hw+8, -hh+8, w-12, h-22);
+    // Helmet
+    ctx.fillStyle='#3a8a3a';
+    ctx.beginPath();
+    ctx.ellipse(-hw+14, -hh+2, 10, 7, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle='#2a7a2a';
+    ctx.fillRect(-hw+5, -hh+3, 18, 4);
+    // Face
+    ctx.fillStyle='#d4b896';
+    ctx.fillRect(-hw+9, -hh+6, w-14, 8);
+    ctx.fillStyle='#1a1a18';
+    ctx.fillRect(hw-12, -hh+9, 2, 2);
+    // Arms
+    ctx.fillStyle='#2a3a2a';
+    ctx.fillRect(hw-12, -hh+14, 10, 5);
+  }
+}
+
+// ── OBSTACLES ─────────────────────────────────────────────────────────────────
+let obs=[];
+
+function spawnObs() {
+  const lv  = LEVELS[lvlIdx];
+  const gap = CFG.gap - Math.min(25, score*0.3); // gap narrows more slowly
+  const gapY = GH*0.15 + Math.random()*(H - GH - gap - GH*0.25);
+  obs.push({ x:W+28, gapY, gap, w:44, passed:false, col:lv.obs, top:lv.obsTop });
+}
+
+function updateObs() {
+  obs.forEach(o => {
+    o.x -= speed;
+    if(!o.passed && o.x+o.w/2 < player.x) {
+      o.passed=true; score++;
+      document.getElementById('sv').textContent=score;
+      updateLevel();
+    }
+  });
+  obs = obs.filter(o => o.x > -60);
+}
+
+function drawObs() {
+  obs.forEach(o => {
+    ctx.fillStyle=o.col;
+    ctx.fillRect(o.x-o.w/2, 0, o.w, o.gapY);
+    ctx.fillStyle=o.top;
+    ctx.fillRect(o.x-o.w/2-3, o.gapY-14, o.w+6, 14);
+    const bot=o.gapY+o.gap;
+    ctx.fillStyle=o.col;
+    ctx.fillRect(o.x-o.w/2, bot, o.w, H-bot-GH);
+    ctx.fillStyle=o.top;
+    ctx.fillRect(o.x-o.w/2-3, bot, o.w+6, 14);
+  });
+}
+
+function checkCollisions() {
+  const hb=player.hitbox();
+  if(player.y+player.h/2 > H-GH || player.y-player.h/2 < 0) return true;
+  for(const o of obs) {
+    if(hb.x+hb.w > o.x-o.w/2 && hb.x < o.x+o.w/2) {
+      if(hb.y < o.gapY || hb.y+hb.h > o.gapY+o.gap) return true;
+    }
+  }
+  return false;
+}
+
+// ── BACKGROUND ────────────────────────────────────────────────────────────────
+function initBuildings() {
+  buildings=[];
+  const lv=LEVELS[lvlIdx];
+  for(let i=0;i<14;i++) {
+    buildings.push({
+      x:Math.random()*W*1.5,
+      w:20+Math.random()*40,
+      h:30+Math.random()*(H*0.28),
+      col:lv.bld[Math.floor(Math.random()*lv.bld.length)],
+      layer:Math.random()<0.5?0:1,
+    });
+  }
+  buildings.sort((a,b)=>a.layer-b.layer);
+}
+
+function drawBackground() {
+  const lv=LEVELS[lvlIdx];
+  const sky=ctx.createLinearGradient(0,0,0,H-GH);
+  sky.addColorStop(0, lv.sky[0]);
+  sky.addColorStop(0.5, lv.sky[1]);
+  sky.addColorStop(1, lv.sky[2]);
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,W,H-GH);
+
+  buildings.forEach(b => {
+    ctx.fillStyle=b.col;
+    ctx.globalAlpha=b.layer===0?0.35:0.6;
+    ctx.fillRect(b.x, H-GH-b.h, b.w, b.h);
+    ctx.globalAlpha=1;
+    b.x -= speed*(b.layer===0?0.3:0.55);
+    if(b.x+b.w<0) {
+      b.x=W+20;
+      b.w=20+Math.random()*40;
+      b.h=30+Math.random()*(H*0.28);
+      b.col=LEVELS[lvlIdx].bld[Math.floor(Math.random()*LEVELS[lvlIdx].bld.length)];
+    }
+  });
+
+  ctx.fillStyle=lv.ground;
+  ctx.fillRect(0,H-GH,W,GH);
+  ctx.fillStyle=lv.gndAccent;
+  ctx.fillRect(0,H-GH,W,3);
+
+  // Ground marks
+  ctx.strokeStyle=lv.gndAccent;
+  ctx.lineWidth=1; ctx.globalAlpha=0.3;
+  for(let x=(frame*speed*0.5)%60;x<W;x+=60) {
+    ctx.beginPath(); ctx.moveTo(x,H-GH+8); ctx.lineTo(x+20,H-GH+8); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  // Fog
+  const fog=ctx.createLinearGradient(0,H-GH-60,0,H-GH);
+  fog.addColorStop(0,'transparent');
+  fog.addColorStop(1,lv.fog);
+  ctx.fillStyle=fog;
+  ctx.fillRect(0,H-GH-60,W,60);
+}
+
+// ── WEATHER ───────────────────────────────────────────────────────────────────
+function initWeather() {
+  weather=[];
+  const lv=LEVELS[lvlIdx];
+  if(!lv.weather) return;
+  const n=lv.weather==='snow'?60:25;
+  for(let i=0;i<n;i++) spawnPtcl(true);
+}
+
+function spawnPtcl(init) {
+  const lv=LEVELS[lvlIdx];
+  if(!lv.weather) return;
+  weather.push({
+    x: Math.random()*W,
+    y: init?Math.random()*H:-10,
+    vx: lv.weather==='snow'?(Math.random()-0.5)*0.8:-speed*0.5,
+    vy: lv.weather==='snow'?0.8+Math.random()*1.2:1.5+Math.random()*2,
+    r:  lv.weather==='snow'?1.5+Math.random()*2:2+Math.random()*3,
+    a:  0.3+Math.random()*0.5,
+    type:lv.weather,
+  });
+}
+
+function updateWeather() {
+  const lv=LEVELS[lvlIdx];
+  if(!lv.weather){weather=[];return;}
+  weather.forEach(p=>{p.x+=p.vx;p.y+=p.vy;});
+  weather=weather.filter(p=>p.y<H+20&&p.x>-20);
+  const n=lv.weather==='snow'?60:25;
+  while(weather.length<n) spawnPtcl(false);
+}
+
+function drawWeather() {
+  weather.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=p.a;
+    if(p.type==='snow') {
+      ctx.fillStyle='#e8f4ff';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillStyle='#a8783a';
+      ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r*1.5,p.r*0.7,frame*0.05,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+// ── LEVEL ─────────────────────────────────────────────────────────────────────
+function updateLevel() {
+  for(let i=LEVELS.length-1;i>=0;i--) {
+    if(score>=LEVELS[i].threshold) {
+      if(i!==lvlIdx) {
+        lvlIdx=i;
+        initWeather();
+        buildings.forEach(b=>{
+          b.col=LEVELS[lvlIdx].bld[Math.floor(Math.random()*LEVELS[lvlIdx].bld.length)];
+        });
+      }
+      document.querySelectorAll('.pip').forEach((p,j)=>p.classList.toggle('on',j===i));
+      return;
+    }
+  }
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────────
+function resize() {
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  GH=CFG.groundH;
+}
+
+function reset() {
+  score=0;frame=0;speed=CFG.baseSpeed;lvlIdx=0;
+  obs=[];lastSpawn=0;
+  document.getElementById('sv').textContent=0;
+  document.getElementById('fs').textContent=0;
+  document.querySelectorAll('.pip').forEach((p,i)=>p.classList.toggle('on',i===0));
+  player.reset();
+  initBuildings();
+  initWeather();
+}
+
+function loop(ts) {
+  requestAnimationFrame(loop);
+  if(state!=='play') return;
+  frame++; speed+=CFG.speedInc;
+
+  if(ts-lastSpawn > CFG.spawnMs-Math.min(250,score*2)) {
+    spawnObs(); lastSpawn=ts;
+  }
+
+  ctx.clearRect(0,0,W,H);
+  drawBackground();
+  drawWeather(); updateWeather();
+  drawObs(); updateObs();
+  player.update();
+  player.draw();
+
+  if(checkCollisions()) {
+    state='dead';
+    document.getElementById('fs').textContent=score;
+    document.getElementById('over').classList.add('in');
+    document.getElementById('score').style.opacity='0';
+  }
+}
+
+function onInput() {
+  if(state==='start') {
+    document.getElementById('start').classList.add('out');
+    document.getElementById('score').style.opacity='1';
+    setTimeout(()=>{ document.getElementById('start').style.display='none'; },900);
+    state='play'; return;
+  }
+  if(state==='play') player.jump();
+}
+
+document.getElementById('rbtn').addEventListener('click', e=>{
+  e.stopPropagation();
+  document.getElementById('over').classList.remove('in');
+  state='start';
+  document.getElementById('start').style.display='flex';
+  setTimeout(()=>{
+    document.getElementById('start').classList.remove('out');
+    document.getElementById('start').style.opacity='';
+  },50);
+  reset();
+});
+
+canvas.addEventListener('click', onInput);
+canvas.addEventListener('touchstart', e=>{e.preventDefault();onInput();},{passive:false});
+document.addEventListener('keydown', e=>{if(e.code==='Space'||e.code==='ArrowUp')onInput();});
+
+window.addEventListener('resize', resize);
+resize(); reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
